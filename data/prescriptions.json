@@ -295,5 +295,60 @@
     "Linked Appointment ID": "APT-H110",
     "Linked Diagnosis (EN)": "Adult-onset asthma",
     "Linked Diagnosis (AR)": "ربو لدى البالغين"
+  },
+  {
+    "Prescription ID": "RX-2026-00471",
+    "Patient ID": "PAT-006",
+    "Prescribing Doctor ID": "DR-016",
+    "Clinic ID": "CLN-001",
+    "Issued Date": "2026-04-22",
+    "Expiration Date": "2026-07-22",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-010",
+        "Name (EN)": "Omeprazole",
+        "Name (AR)": "أوميبرازول",
+        "Dose": "20mg",
+        "Frequency (EN)": "1 capsule daily before breakfast",
+        "Frequency (AR)": "كبسولة واحدة يومياً قبل الفطور",
+        "Duration Days": 30,
+        "Instructions (EN)": "Take 30 minutes before breakfast on an empty stomach. Continue post-operatively for stomach protection and reflux management.",
+        "Instructions (AR)": "يؤخذ قبل الفطور بـ 30 دقيقة على معدة فارغة. يستمر بعد العملية لحماية المعدة وتقليل الارتجاع.",
+        "Refills Remaining": 1,
+        "Refills Total": 1
+      },
+      {
+        "Medication ID": "MED-015",
+        "Name (EN)": "Paracetamol (Acetaminophen)",
+        "Name (AR)": "باراسيتامول",
+        "Dose": "500mg",
+        "Frequency (EN)": "1-2 tablets every 6 hours as needed",
+        "Frequency (AR)": "حبة إلى حبتين كل 6 ساعات عند الحاجة",
+        "Duration Days": 14,
+        "Instructions (EN)": "For post-operative pain. Do not exceed 4g (8 tablets) in 24 hours. Take with water.",
+        "Instructions (AR)": "لألم ما بعد العملية. لا تتجاوز 4 جرام (8 حبات) في 24 ساعة. يؤخذ مع الماء.",
+        "Refills Remaining": 0,
+        "Refills Total": 0
+      },
+      {
+        "Medication ID": "MED-012",
+        "Name (EN)": "Ibuprofen",
+        "Name (AR)": "إيبوبروفين",
+        "Dose": "400mg",
+        "Frequency (EN)": "1 tablet every 8 hours as needed, with food",
+        "Frequency (AR)": "حبة واحدة كل 8 ساعات عند الحاجة، مع الطعام",
+        "Duration Days": 7,
+        "Instructions (EN)": "Use only if Paracetamol is not sufficient for pain. Always take with food to protect the stomach. Do not combine with Aspirin.",
+        "Instructions (AR)": "يستخدم فقط إذا لم يكن الباراسيتامول كافياً لتسكين الألم. يؤخذ دائماً مع الطعام لحماية المعدة. لا يجمع مع الأسبرين.",
+        "Refills Remaining": 0,
+        "Refills Total": 0
+      }
+    ],
+    "Last Filled Date": "2026-04-22",
+    "Last Filled Pharmacy ID": "PHM-001",
+    "Linked Appointment ID": "APT-H051",
+    "Linked Diagnosis (EN)": "Post-operative pain management; GERD prophylaxis post-cholecystectomy",
+    "Linked Diagnosis (AR)": "إدارة الألم بعد العملية؛ الوقاية من الارتجاع المعدي المريئي بعد استئصال المرارة"
   }
 ]
