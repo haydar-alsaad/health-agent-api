@@ -1,0 +1,105 @@
+[
+  {
+    "Clinic ID": "CLN-001",
+    "Clinic Name (EN)": "Al-Noor Medical Center — Riyadh Main",
+    "Clinic Name (AR)": "مركز النور الطبي — الرياض الرئيسي",
+    "Type": "Main Hospital",
+    "Address (EN)": "King Fahd Road, Al-Olaya District, Riyadh 11564, Saudi Arabia",
+    "Address (AR)": "طريق الملك فهد، حي العليا، الرياض 11564، المملكة العربية السعودية",
+    "Phone": "+966114567890",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Operating Hours": {
+      "Sunday-Thursday": "07:00-22:00",
+      "Friday": "14:00-22:00",
+      "Saturday": "08:00-20:00"
+    },
+    "Specialties Available": [
+      "Internal Medicine",
+      "Family Medicine",
+      "Cardiology",
+      "Endocrinology",
+      "Gastroenterology",
+      "Neurology",
+      "Dermatology",
+      "Orthopedics",
+      "Pediatrics",
+      "OB-GYN",
+      "ENT",
+      "General Surgery",
+      "Ophthalmology",
+      "Psychiatry",
+      "Emergency Medicine"
+    ],
+    "Pharmacy On Site": "Yes",
+    "Pharmacy ID": "PHM-001",
+    "Lab On Site": "Yes",
+    "Imaging On Site": "Yes (X-Ray, CT, MRI, Ultrasound)",
+    "Emergency Department": "Yes - 24/7",
+    "Parking": "Available - Free for patients (3 hours)",
+    "Bed Capacity": 350
+  },
+  {
+    "Clinic ID": "CLN-002",
+    "Clinic Name (EN)": "Al-Noor Heart & Specialty Center",
+    "Clinic Name (AR)": "مركز النور للقلب والتخصصات",
+    "Type": "Specialty Center",
+    "Address (EN)": "Prince Mohammed Bin Abdulaziz Road, Al-Sahafa District, Riyadh 13315, Saudi Arabia",
+    "Address (AR)": "طريق الأمير محمد بن عبدالعزيز، حي الصحافة، الرياض 13315، المملكة العربية السعودية",
+    "Phone": "+966112345678",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Operating Hours": {
+      "Sunday-Thursday": "08:00-20:00",
+      "Friday": "Closed",
+      "Saturday": "09:00-17:00"
+    },
+    "Specialties Available": [
+      "Cardiology",
+      "Interventional Cardiology",
+      "Cardiac Surgery",
+      "Endocrinology",
+      "Neurology",
+      "Gastroenterology",
+      "Pulmonology"
+    ],
+    "Pharmacy On Site": "Yes",
+    "Pharmacy ID": "PHM-002",
+    "Lab On Site": "Yes",
+    "Imaging On Site": "Yes (Echo, ECG, Stress Test, CT Angio)",
+    "Emergency Department": "No",
+    "Parking": "Available - Free for patients",
+    "Bed Capacity": 80
+  },
+  {
+    "Clinic ID": "CLN-003",
+    "Clinic Name (EN)": "Al-Noor Family Clinic — Jeddah",
+    "Clinic Name (AR)": "عيادة النور للعائلة — جدة",
+    "Type": "Outpatient Clinic",
+    "Address (EN)": "Tahlia Street, Al-Zahra District, Jeddah 23344, Saudi Arabia",
+    "Address (AR)": "شارع التحلية، حي الزهراء، جدة 23344، المملكة العربية السعودية",
+    "Phone": "+966126789012",
+    "City (EN)": "Jeddah",
+    "City (AR)": "جدة",
+    "Operating Hours": {
+      "Sunday-Thursday": "08:00-22:00",
+      "Friday": "16:00-22:00",
+      "Saturday": "10:00-20:00"
+    },
+    "Specialties Available": [
+      "Family Medicine",
+      "Pediatrics",
+      "OB-GYN",
+      "Internal Medicine",
+      "Dermatology",
+      "Vaccinations"
+    ],
+    "Pharmacy On Site": "No",
+    "Pharmacy ID": null,
+    "Lab On Site": "Yes (Basic - blood work, urine tests)",
+    "Imaging On Site": "Yes (X-Ray, Ultrasound)",
+    "Emergency Department": "No",
+    "Parking": "Available - SAR 5/hour",
+    "Bed Capacity": 0
+  }
+]

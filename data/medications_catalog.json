@@ -1,0 +1,570 @@
+[
+  {
+    "Medication ID": "MED-001",
+    "Generic Name (EN)": "Atorvastatin",
+    "Generic Name (AR)": "أتورفاستاتين",
+    "Brand Names": [
+      "Lipitor",
+      "Atorlip"
+    ],
+    "Class (EN)": "Statin (HMG-CoA reductase inhibitor)",
+    "Class (AR)": "ستاتين",
+    "Indication (EN)": "Lowers LDL cholesterol and triglycerides; reduces risk of cardiovascular events including heart attack and stroke.",
+    "Indication (AR)": "يخفض الكوليسترول الضار والدهون الثلاثية؛ يقلل من خطر أمراض القلب والأوعية الدموية بما في ذلك النوبة القلبية والسكتة الدماغية.",
+    "Common Dosages": [
+      "10mg",
+      "20mg",
+      "40mg",
+      "80mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Muscle pain",
+      "Headache",
+      "Mild liver enzyme elevation",
+      "Digestive upset"
+    ],
+    "Common Side Effects (AR)": [
+      "ألم في العضلات",
+      "صداع",
+      "ارتفاع طفيف في إنزيمات الكبد",
+      "اضطراب في الجهاز الهضمي"
+    ],
+    "Interactions Note (EN)": "Avoid grapefruit juice. Notify doctor if taking other cholesterol medications, certain antibiotics, or blood thinners.",
+    "Interactions Note (AR)": "تجنب عصير الجريب فروت. أبلغ طبيبك إذا كنت تتناول أدوية أخرى للكوليسترول أو مضادات حيوية معينة أو مميعات الدم.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "80% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-002",
+    "Generic Name (EN)": "Aspirin (low-dose)",
+    "Generic Name (AR)": "أسبرين (جرعة منخفضة)",
+    "Brand Names": [
+      "Aspirin Cardio",
+      "Cardiprin"
+    ],
+    "Class (EN)": "Antiplatelet / NSAID",
+    "Class (AR)": "مضاد التخثر",
+    "Indication (EN)": "Low-dose aspirin (81mg) is used for cardiovascular protection — prevents blood clots, reduces heart attack and stroke risk in high-risk patients.",
+    "Indication (AR)": "الأسبرين بجرعة منخفضة (81 ملغ) يستخدم لحماية القلب — يمنع جلطات الدم ويقلل من خطر النوبة القلبية والسكتة الدماغية لدى المرضى المعرضين للخطر.",
+    "Common Dosages": [
+      "81mg",
+      "100mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Stomach upset",
+      "Increased bleeding tendency",
+      "Heartburn"
+    ],
+    "Common Side Effects (AR)": [
+      "اضطراب المعدة",
+      "زيادة النزيف",
+      "حرقة المعدة"
+    ],
+    "Interactions Note (EN)": "Inform doctor before any surgery or dental procedure. Avoid combining with other blood thinners unless prescribed.",
+    "Interactions Note (AR)": "أبلغ الطبيب قبل أي عملية جراحية أو إجراء سني. تجنب الجمع مع مميعات دم أخرى إلا بوصفة.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "80% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "No (OTC)",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-003",
+    "Generic Name (EN)": "Metoprolol Succinate ER",
+    "Generic Name (AR)": "ميتوبرولول سكسينات (ممتد المفعول)",
+    "Brand Names": [
+      "Toprol XL",
+      "Betaloc ZOK"
+    ],
+    "Class (EN)": "Beta-blocker (cardioselective)",
+    "Class (AR)": "حاصرات بيتا (انتقائية للقلب)",
+    "Indication (EN)": "Treats hypertension, angina, heart failure, and post-heart-attack care. Slows heart rate and reduces blood pressure.",
+    "Indication (AR)": "يعالج ارتفاع ضغط الدم والذبحة الصدرية وفشل القلب والرعاية بعد النوبة القلبية. يبطئ معدل ضربات القلب ويخفض ضغط الدم.",
+    "Common Dosages": [
+      "25mg",
+      "50mg",
+      "100mg",
+      "200mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Fatigue",
+      "Dizziness",
+      "Cold extremities",
+      "Slow heart rate"
+    ],
+    "Common Side Effects (AR)": [
+      "تعب",
+      "دوخة",
+      "برودة الأطراف",
+      "بطء معدل ضربات القلب"
+    ],
+    "Interactions Note (EN)": "Do not stop suddenly — must be tapered. Notify doctor if you have asthma or low heart rate.",
+    "Interactions Note (AR)": "لا تتوقف عن تناوله فجأة — يجب التقليل التدريجي. أبلغ الطبيب إذا كنت تعاني من الربو أو بطء ضربات القلب.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "80% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-004",
+    "Generic Name (EN)": "Metformin",
+    "Generic Name (AR)": "ميتفورمين",
+    "Brand Names": [
+      "Glucophage",
+      "Glucient"
+    ],
+    "Class (EN)": "Biguanide (oral antidiabetic)",
+    "Class (AR)": "بيغوانايد (مضاد سكري فموي)",
+    "Indication (EN)": "First-line treatment for Type 2 diabetes. Lowers blood glucose by reducing liver glucose production and improving insulin sensitivity.",
+    "Indication (AR)": "العلاج الأول لمرض السكري من النوع 2. يخفض سكر الدم عن طريق تقليل إنتاج الجلوكوز في الكبد وتحسين حساسية الأنسولين.",
+    "Common Dosages": [
+      "500mg",
+      "850mg",
+      "1000mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Digestive upset (especially when starting)",
+      "Metallic taste",
+      "Vitamin B12 deficiency with long-term use"
+    ],
+    "Common Side Effects (AR)": [
+      "اضطراب هضمي (خاصة عند البدء)",
+      "طعم معدني",
+      "نقص فيتامين B12 مع الاستخدام طويل المدى"
+    ],
+    "Interactions Note (EN)": "Take with food to reduce GI side effects. Stop before contrast imaging studies.",
+    "Interactions Note (AR)": "تناوله مع الطعام لتقليل الآثار الجانبية. أوقفه قبل دراسات التصوير بالتباين.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-005",
+    "Generic Name (EN)": "Lisinopril",
+    "Generic Name (AR)": "ليزينوبريل",
+    "Brand Names": [
+      "Zestril",
+      "Prinivil"
+    ],
+    "Class (EN)": "ACE inhibitor",
+    "Class (AR)": "مثبط الإنزيم المحول للأنجيوتنسين",
+    "Indication (EN)": "Treats hypertension and heart failure; protects kidney function in diabetes.",
+    "Indication (AR)": "يعالج ارتفاع ضغط الدم وفشل القلب؛ يحمي وظيفة الكلى في مرضى السكري.",
+    "Common Dosages": [
+      "5mg",
+      "10mg",
+      "20mg",
+      "40mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Dry cough",
+      "Dizziness",
+      "Elevated potassium",
+      "Mild fatigue"
+    ],
+    "Common Side Effects (AR)": [
+      "سعال جاف",
+      "دوخة",
+      "ارتفاع البوتاسيوم",
+      "تعب طفيف"
+    ],
+    "Interactions Note (EN)": "Avoid potassium supplements. Notify doctor if pregnant — should not be used during pregnancy.",
+    "Interactions Note (AR)": "تجنب مكملات البوتاسيوم. أبلغ الطبيب إذا كنت حاملاً — لا يجب استخدامه أثناء الحمل.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-006",
+    "Generic Name (EN)": "Amoxicillin",
+    "Generic Name (AR)": "أموكسيسيلين",
+    "Brand Names": [
+      "Amoxil",
+      "Augmentin (with clavulanate)"
+    ],
+    "Class (EN)": "Penicillin antibiotic",
+    "Class (AR)": "مضاد حيوي بنسلين",
+    "Indication (EN)": "Treats bacterial infections including ear, throat, sinus, urinary tract, and certain skin infections.",
+    "Indication (AR)": "يعالج الالتهابات البكتيرية بما في ذلك الأذن والحلق والجيوب الأنفية والمسالك البولية وبعض التهابات الجلد.",
+    "Common Dosages": [
+      "250mg",
+      "500mg",
+      "875mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Diarrhea",
+      "Nausea",
+      "Skin rash"
+    ],
+    "Common Side Effects (AR)": [
+      "إسهال",
+      "غثيان",
+      "طفح جلدي"
+    ],
+    "Interactions Note (EN)": "Tell doctor about ALL allergies (especially penicillin). Complete the full course even if feeling better.",
+    "Interactions Note (AR)": "أخبر الطبيب عن جميع الحساسية (خاصة البنسلين). أكمل الجرعة الكاملة حتى لو تحسنت.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-007",
+    "Generic Name (EN)": "Levothyroxine",
+    "Generic Name (AR)": "ليفوثيروكسين",
+    "Brand Names": [
+      "Synthroid",
+      "Eltroxin"
+    ],
+    "Class (EN)": "Thyroid hormone replacement",
+    "Class (AR)": "بديل هرمون الغدة الدرقية",
+    "Indication (EN)": "Treats hypothyroidism (underactive thyroid). Replaces the hormone the thyroid gland is not making in sufficient amounts.",
+    "Indication (AR)": "يعالج قصور الغدة الدرقية. يحل محل الهرمون الذي لا تنتجه الغدة الدرقية بكميات كافية.",
+    "Common Dosages": [
+      "25mcg",
+      "50mcg",
+      "75mcg",
+      "100mcg",
+      "125mcg",
+      "150mcg"
+    ],
+    "Common Side Effects (EN)": [
+      "Usually none at correct dose",
+      "Heart palpitations or anxiety if dose too high",
+      "Fatigue if dose too low"
+    ],
+    "Common Side Effects (AR)": [
+      "عادةً لا يوجد عند الجرعة الصحيحة",
+      "خفقان قلب أو قلق إذا كانت الجرعة عالية",
+      "تعب إذا كانت الجرعة منخفضة"
+    ],
+    "Interactions Note (EN)": "Take on empty stomach 30-60 minutes before breakfast. Avoid taking with calcium, iron, or coffee.",
+    "Interactions Note (AR)": "تناوله على معدة فارغة قبل الإفطار بـ 30-60 دقيقة. تجنب تناوله مع الكالسيوم أو الحديد أو القهوة.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-008",
+    "Generic Name (EN)": "Insulin Glargine",
+    "Generic Name (AR)": "أنسولين جلارجين",
+    "Brand Names": [
+      "Lantus",
+      "Toujeo"
+    ],
+    "Class (EN)": "Long-acting insulin",
+    "Class (AR)": "أنسولين طويل المفعول",
+    "Indication (EN)": "Long-acting basal insulin used in Type 1 and advanced Type 2 diabetes.",
+    "Indication (AR)": "أنسولين قاعدي طويل المفعول يستخدم في السكري من النوع الأول والنوع الثاني المتقدم.",
+    "Common Dosages": [
+      "100 units/mL",
+      "300 units/mL"
+    ],
+    "Common Side Effects (EN)": [
+      "Low blood sugar (hypoglycemia)",
+      "Injection site reaction",
+      "Weight gain"
+    ],
+    "Common Side Effects (AR)": [
+      "انخفاض سكر الدم",
+      "تفاعل في موضع الحقن",
+      "زيادة الوزن"
+    ],
+    "Interactions Note (EN)": "Carry sugar source for hypoglycemia. Rotate injection sites. Store unopened vials in refrigerator.",
+    "Interactions Note (AR)": "احمل مصدر سكر لانخفاض سكر الدم. غيّر مواقع الحقن. خزّن العبوات غير المفتوحة في الثلاجة.",
+    "Coverage by Tier": {
+      "Basic": "60% covered (with limit)",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-009",
+    "Generic Name (EN)": "Sertraline",
+    "Generic Name (AR)": "سيرترالين",
+    "Brand Names": [
+      "Zoloft",
+      "Lustral"
+    ],
+    "Class (EN)": "SSRI antidepressant",
+    "Class (AR)": "مضاد اكتئاب SSRI",
+    "Indication (EN)": "Treats depression, anxiety disorders, panic disorder, OCD, and PTSD.",
+    "Indication (AR)": "يعالج الاكتئاب واضطرابات القلق واضطراب الذعر والوسواس القهري واضطراب ما بعد الصدمة.",
+    "Common Dosages": [
+      "25mg",
+      "50mg",
+      "100mg",
+      "200mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Nausea (often improves after 2 weeks)",
+      "Sleep changes",
+      "Reduced appetite",
+      "Sexual side effects"
+    ],
+    "Common Side Effects (AR)": [
+      "غثيان (غالباً يتحسن بعد أسبوعين)",
+      "تغيرات في النوم",
+      "انخفاض الشهية",
+      "آثار جانبية جنسية"
+    ],
+    "Interactions Note (EN)": "Do not stop suddenly. Allow 4-6 weeks for full effect. Notify doctor if you experience severe mood changes.",
+    "Interactions Note (AR)": "لا تتوقف فجأة. اسمح بـ 4-6 أسابيع للتأثير الكامل. أبلغ الطبيب إذا واجهت تغيرات حادة في المزاج.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "80% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-010",
+    "Generic Name (EN)": "Omeprazole",
+    "Generic Name (AR)": "أوميبرازول",
+    "Brand Names": [
+      "Prilosec",
+      "Losec"
+    ],
+    "Class (EN)": "Proton pump inhibitor (PPI)",
+    "Class (AR)": "مثبط مضخة البروتون",
+    "Indication (EN)": "Treats GERD, peptic ulcers, and acid reflux. Reduces stomach acid production.",
+    "Indication (AR)": "يعالج الارتجاع المعدي المريئي وقرحة المعدة وحرقة المعدة. يقلل إنتاج حمض المعدة.",
+    "Common Dosages": [
+      "10mg",
+      "20mg",
+      "40mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Headache",
+      "Diarrhea",
+      "Vitamin B12 deficiency with long-term use"
+    ],
+    "Common Side Effects (AR)": [
+      "صداع",
+      "إسهال",
+      "نقص فيتامين B12 مع الاستخدام طويل المدى"
+    ],
+    "Interactions Note (EN)": "Take 30-60 minutes before meals. Long-term use may affect calcium absorption.",
+    "Interactions Note (AR)": "تناوله قبل الوجبات بـ 30-60 دقيقة. الاستخدام طويل المدى قد يؤثر على امتصاص الكالسيوم.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "No (OTC available)",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-011",
+    "Generic Name (EN)": "Folic Acid (Prenatal)",
+    "Generic Name (AR)": "حمض الفوليك (للحوامل)",
+    "Brand Names": [
+      "Folac",
+      "Folicare"
+    ],
+    "Class (EN)": "Vitamin (B9) — prenatal supplement",
+    "Class (AR)": "فيتامين (ب9) — مكمل للحوامل",
+    "Indication (EN)": "Prevents neural tube defects in pregnancy. Recommended for women planning pregnancy and during first trimester.",
+    "Indication (AR)": "يمنع عيوب الأنبوب العصبي أثناء الحمل. يُنصح به للنساء اللاتي يخططن للحمل وفي الثلث الأول.",
+    "Common Dosages": [
+      "400mcg",
+      "1mg",
+      "5mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Generally well tolerated",
+      "Rare: nausea or skin rash"
+    ],
+    "Common Side Effects (AR)": [
+      "يتحمله الجسم جيداً عموماً",
+      "نادراً: غثيان أو طفح جلدي"
+    ],
+    "Interactions Note (EN)": "Combine with prenatal multivitamin if recommended by OB-GYN.",
+    "Interactions Note (AR)": "ادمج مع فيتامينات الحمل المتعددة إذا أوصى طبيب النساء والولادة.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "100% covered (maternity)",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "No (OTC, but prenatal Rx common)",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-012",
+    "Generic Name (EN)": "Ibuprofen",
+    "Generic Name (AR)": "إيبوبروفين",
+    "Brand Names": [
+      "Advil",
+      "Brufen",
+      "Nurofen"
+    ],
+    "Class (EN)": "NSAID (pain reliever)",
+    "Class (AR)": "مضاد التهاب غير ستيرويدي",
+    "Indication (EN)": "Reduces pain, fever, and inflammation. Used for headaches, muscle pain, arthritis, menstrual cramps.",
+    "Indication (AR)": "يخفف الألم والحمى والالتهاب. يستخدم للصداع وآلام العضلات والتهاب المفاصل وآلام الدورة الشهرية.",
+    "Common Dosages": [
+      "200mg",
+      "400mg",
+      "600mg",
+      "800mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Stomach upset",
+      "Heartburn",
+      "Increased blood pressure with long use"
+    ],
+    "Common Side Effects (AR)": [
+      "اضطراب المعدة",
+      "حرقة المعدة",
+      "ارتفاع ضغط الدم مع الاستخدام الطويل"
+    ],
+    "Interactions Note (EN)": "Take with food. Avoid in late pregnancy. Caution with blood thinners or kidney disease.",
+    "Interactions Note (AR)": "تناوله مع الطعام. تجنبه في أواخر الحمل. حذر مع مميعات الدم أو أمراض الكلى.",
+    "Coverage by Tier": {
+      "Basic": "60% covered",
+      "Standard": "80% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "No (OTC)",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-013",
+    "Generic Name (EN)": "Amlodipine",
+    "Generic Name (AR)": "أملوديبين",
+    "Brand Names": [
+      "Norvasc",
+      "Amlocard"
+    ],
+    "Class (EN)": "Calcium channel blocker",
+    "Class (AR)": "حاصرات قنوات الكالسيوم",
+    "Indication (EN)": "Treats hypertension and angina by relaxing blood vessels.",
+    "Indication (AR)": "يعالج ارتفاع ضغط الدم والذبحة الصدرية عن طريق إرخاء الأوعية الدموية.",
+    "Common Dosages": [
+      "2.5mg",
+      "5mg",
+      "10mg"
+    ],
+    "Common Side Effects (EN)": [
+      "Ankle swelling",
+      "Flushing",
+      "Headache",
+      "Mild dizziness"
+    ],
+    "Common Side Effects (AR)": [
+      "تورم الكاحل",
+      "احمرار",
+      "صداع",
+      "دوخة طفيفة"
+    ],
+    "Interactions Note (EN)": "Take at the same time daily. Avoid grapefruit juice.",
+    "Interactions Note (AR)": "تناوله في نفس الوقت يومياً. تجنب عصير الجريب فروت.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-014",
+    "Generic Name (EN)": "Salbutamol (Albuterol) Inhaler",
+    "Generic Name (AR)": "سالبوتامول (ألبوتيرول) - بخاخ",
+    "Brand Names": [
+      "Ventolin",
+      "Salbu"
+    ],
+    "Class (EN)": "Short-acting beta-agonist (bronchodilator)",
+    "Class (AR)": "ناهض بيتا قصير المفعول (موسع للشعب الهوائية)",
+    "Indication (EN)": "Quick-relief inhaler for asthma and COPD; opens narrowed airways during attacks.",
+    "Indication (AR)": "بخاخ سريع المفعول للربو ومرض الانسداد الرئوي المزمن؛ يفتح الممرات الهوائية الضيقة أثناء النوبات.",
+    "Common Dosages": [
+      "100mcg/puff inhaler"
+    ],
+    "Common Side Effects (EN)": [
+      "Tremor",
+      "Heart palpitations",
+      "Headache",
+      "Nervousness"
+    ],
+    "Common Side Effects (AR)": [
+      "رعشة",
+      "خفقان القلب",
+      "صداع",
+      "عصبية"
+    ],
+    "Interactions Note (EN)": "If using more than 2 days/week, your asthma may not be controlled — see your doctor.",
+    "Interactions Note (AR)": "إذا كنت تستخدمه أكثر من يومين في الأسبوع، فقد لا يكون الربو لديك مسيطراً عليه — راجع طبيبك.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "85% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "Yes",
+    "Controlled Substance": "No"
+  },
+  {
+    "Medication ID": "MED-015",
+    "Generic Name (EN)": "Paracetamol (Acetaminophen)",
+    "Generic Name (AR)": "باراسيتامول (أسيتامينوفين)",
+    "Brand Names": [
+      "Panadol",
+      "Tylenol"
+    ],
+    "Class (EN)": "Analgesic / Antipyretic",
+    "Class (AR)": "مسكن للألم / خافض للحرارة",
+    "Indication (EN)": "Relieves mild to moderate pain and reduces fever. Safer choice than NSAIDs for most patients.",
+    "Indication (AR)": "يخفف الألم الخفيف إلى المتوسط ويخفض الحرارة. خيار أكثر أماناً من مضادات الالتهاب لمعظم المرضى.",
+    "Common Dosages": [
+      "500mg",
+      "650mg ER",
+      "1g"
+    ],
+    "Common Side Effects (EN)": [
+      "Generally very well tolerated",
+      "Liver damage at high doses or with alcohol"
+    ],
+    "Common Side Effects (AR)": [
+      "يتحمله الجسم جيداً جداً",
+      "تلف الكبد بجرعات عالية أو مع الكحول"
+    ],
+    "Interactions Note (EN)": "Do not exceed 4g/day in adults. Avoid alcohol while using.",
+    "Interactions Note (AR)": "لا تتجاوز 4 غرام يومياً للبالغين. تجنب الكحول أثناء استخدامه.",
+    "Coverage by Tier": {
+      "Basic": "70% covered",
+      "Standard": "100% covered",
+      "VIP / Premium": "100% covered"
+    },
+    "Requires Prescription": "No (OTC)",
+    "Controlled Substance": "No"
+  }
+]

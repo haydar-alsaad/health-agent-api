@@ -1,0 +1,299 @@
+[
+  {
+    "Prescription ID": "RX-2026-00452",
+    "Patient ID": "PAT-002",
+    "Prescribing Doctor ID": "DR-001",
+    "Clinic ID": "CLN-002",
+    "Issued Date": "2026-04-10",
+    "Expiration Date": "2026-10-10",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-001",
+        "Name (EN)": "Atorvastatin",
+        "Name (AR)": "أتورفاستاتين",
+        "Dose": "40mg",
+        "Frequency (EN)": "1 tablet daily at bedtime",
+        "Frequency (AR)": "حبة واحدة يومياً عند النوم",
+        "Duration Days": 90,
+        "Instructions (EN)": "Take at bedtime. May be taken with or without food.",
+        "Instructions (AR)": "يؤخذ عند النوم. يمكن تناوله مع الطعام أو بدونه.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      },
+      {
+        "Medication ID": "MED-002",
+        "Name (EN)": "Aspirin (low-dose)",
+        "Name (AR)": "أسبرين (جرعة منخفضة)",
+        "Dose": "81mg",
+        "Frequency (EN)": "1 tablet daily after breakfast",
+        "Frequency (AR)": "حبة واحدة يومياً بعد الفطور",
+        "Duration Days": 90,
+        "Instructions (EN)": "Take with food to reduce stomach irritation.",
+        "Instructions (AR)": "يؤخذ مع الطعام لتقليل تهيج المعدة.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      },
+      {
+        "Medication ID": "MED-003",
+        "Name (EN)": "Metoprolol Succinate ER",
+        "Name (AR)": "ميتوبرولول سكسينات (ممتد المفعول)",
+        "Dose": "50mg",
+        "Frequency (EN)": "1 tablet daily in the morning",
+        "Frequency (AR)": "حبة واحدة يومياً في الصباح",
+        "Duration Days": 90,
+        "Instructions (EN)": "Take at the same time daily. Do not stop suddenly.",
+        "Instructions (AR)": "يؤخذ في نفس الوقت يومياً. لا تتوقف فجأة.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      }
+    ],
+    "Last Filled Date": "2026-04-11",
+    "Last Filled Pharmacy ID": "PHM-002",
+    "Linked Appointment ID": "APT-H003",
+    "Linked Diagnosis (EN)": "Post-angioplasty cardiac care; Hyperlipidemia",
+    "Linked Diagnosis (AR)": "الرعاية القلبية بعد توسيع الشرايين؛ ارتفاع الدهون في الدم"
+  },
+  {
+    "Prescription ID": "RX-2026-00100",
+    "Patient ID": "PAT-002",
+    "Prescribing Doctor ID": "DR-001",
+    "Clinic ID": "CLN-002",
+    "Issued Date": "2026-01-28",
+    "Expiration Date": "2026-04-28",
+    "Status": "Expired",
+    "Medications": [
+      {
+        "Medication ID": "MED-001",
+        "Name (EN)": "Atorvastatin",
+        "Name (AR)": "أتورفاستاتين",
+        "Dose": "40mg",
+        "Frequency (EN)": "1 tablet daily at bedtime",
+        "Frequency (AR)": "حبة واحدة يومياً عند النوم",
+        "Duration Days": 90,
+        "Instructions (EN)": "Initial post-procedure prescription.",
+        "Instructions (AR)": "وصفة أولية بعد الإجراء.",
+        "Refills Remaining": 0,
+        "Refills Total": 1
+      }
+    ],
+    "Last Filled Date": "2026-02-15",
+    "Last Filled Pharmacy ID": "PHM-002",
+    "Linked Appointment ID": "APT-H001",
+    "Linked Diagnosis (EN)": "Post-angioplasty initial",
+    "Linked Diagnosis (AR)": "بعد توسيع الشرايين الأولي"
+  },
+  {
+    "Prescription ID": "RX-2026-00210",
+    "Patient ID": "PAT-003",
+    "Prescribing Doctor ID": "DR-004",
+    "Clinic ID": "CLN-002",
+    "Issued Date": "2026-02-10",
+    "Expiration Date": "2026-08-10",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-004",
+        "Name (EN)": "Metformin",
+        "Name (AR)": "ميتفورمين",
+        "Dose": "1000mg",
+        "Frequency (EN)": "1 tablet twice daily with meals",
+        "Frequency (AR)": "حبة مرتين يومياً مع الوجبات",
+        "Duration Days": 90,
+        "Instructions (EN)": "Take with food to minimize GI upset.",
+        "Instructions (AR)": "يؤخذ مع الطعام لتقليل اضطراب الجهاز الهضمي.",
+        "Refills Remaining": 1,
+        "Refills Total": 2
+      },
+      {
+        "Medication ID": "MED-005",
+        "Name (EN)": "Lisinopril",
+        "Name (AR)": "ليزينوبريل",
+        "Dose": "10mg",
+        "Frequency (EN)": "1 tablet daily in the morning",
+        "Frequency (AR)": "حبة واحدة يومياً في الصباح",
+        "Duration Days": 90,
+        "Instructions (EN)": "May cause dry cough. Notify doctor if pregnant.",
+        "Instructions (AR)": "قد يسبب سعالاً جافاً. أبلغ الطبيب إذا كنت حاملاً.",
+        "Refills Remaining": 1,
+        "Refills Total": 2
+      }
+    ],
+    "Last Filled Date": "2026-04-15",
+    "Last Filled Pharmacy ID": "PHM-002",
+    "Linked Appointment ID": "APT-H020",
+    "Linked Diagnosis (EN)": "Type 2 Diabetes; Hypertension",
+    "Linked Diagnosis (AR)": "السكري من النوع الثاني؛ ارتفاع ضغط الدم"
+  },
+  {
+    "Prescription ID": "RX-2026-00301",
+    "Patient ID": "PAT-004",
+    "Prescribing Doctor ID": "DR-010",
+    "Clinic ID": "CLN-003",
+    "Issued Date": "2026-04-22",
+    "Expiration Date": "2026-08-22",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-011",
+        "Name (EN)": "Folic Acid (Prenatal)",
+        "Name (AR)": "حمض الفوليك (للحوامل)",
+        "Dose": "5mg",
+        "Frequency (EN)": "1 tablet daily",
+        "Frequency (AR)": "حبة واحدة يومياً",
+        "Duration Days": 120,
+        "Instructions (EN)": "Take with prenatal multivitamin if recommended.",
+        "Instructions (AR)": "يؤخذ مع فيتامينات الحمل المتعددة إذا أوصى الطبيب.",
+        "Refills Remaining": 1,
+        "Refills Total": 1
+      }
+    ],
+    "Last Filled Date": "2026-04-22",
+    "Last Filled Pharmacy ID": "PHM-005",
+    "Linked Appointment ID": "APT-H030",
+    "Linked Diagnosis (EN)": "Pregnancy - prenatal care",
+    "Linked Diagnosis (AR)": "الحمل - رعاية ما قبل الولادة"
+  },
+  {
+    "Prescription ID": "RX-2026-00401",
+    "Patient ID": "PAT-005",
+    "Prescribing Doctor ID": "DR-008",
+    "Clinic ID": "CLN-003",
+    "Issued Date": "2026-03-15",
+    "Expiration Date": "2026-09-15",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-014",
+        "Name (EN)": "Salbutamol Inhaler (Pediatric)",
+        "Name (AR)": "بخاخ سالبوتامول (للأطفال)",
+        "Dose": "100mcg/puff",
+        "Frequency (EN)": "2 puffs as needed for shortness of breath, max 4 times daily",
+        "Frequency (AR)": "بختين عند الحاجة لضيق التنفس، بحد أقصى 4 مرات يومياً",
+        "Duration Days": 180,
+        "Instructions (EN)": "Use spacer device. Notify doctor if used >2 days/week.",
+        "Instructions (AR)": "استخدم جهاز الفاصل. أبلغ الطبيب إذا استخدمته أكثر من يومين أسبوعياً.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      }
+    ],
+    "Last Filled Date": "2026-03-15",
+    "Last Filled Pharmacy ID": "PHM-005",
+    "Linked Appointment ID": "APT-H040",
+    "Linked Diagnosis (EN)": "Mild pediatric asthma",
+    "Linked Diagnosis (AR)": "ربو خفيف لدى الأطفال"
+  },
+  {
+    "Prescription ID": "RX-2026-00601",
+    "Patient ID": "PAT-007",
+    "Prescribing Doctor ID": "DR-007",
+    "Clinic ID": "CLN-001",
+    "Issued Date": "2026-03-20",
+    "Expiration Date": "2026-09-20",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-013",
+        "Name (EN)": "Amlodipine",
+        "Name (AR)": "أملوديبين",
+        "Dose": "5mg",
+        "Frequency (EN)": "1 tablet daily",
+        "Frequency (AR)": "حبة واحدة يومياً",
+        "Duration Days": 90,
+        "Instructions (EN)": "Take at the same time daily.",
+        "Instructions (AR)": "يؤخذ في نفس الوقت يومياً.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      },
+      {
+        "Medication ID": "MED-004",
+        "Name (EN)": "Metformin",
+        "Name (AR)": "ميتفورمين",
+        "Dose": "850mg",
+        "Frequency (EN)": "1 tablet twice daily with meals",
+        "Frequency (AR)": "حبة مرتين يومياً مع الوجبات",
+        "Duration Days": 90,
+        "Instructions (EN)": "Take with food.",
+        "Instructions (AR)": "يؤخذ مع الطعام.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      },
+      {
+        "Medication ID": "MED-015",
+        "Name (EN)": "Paracetamol",
+        "Name (AR)": "باراسيتامول",
+        "Dose": "500mg",
+        "Frequency (EN)": "1-2 tablets every 6 hours as needed for pain, max 8 tablets/day",
+        "Frequency (AR)": "1-2 حبة كل 6 ساعات عند الحاجة، بحد أقصى 8 حبات يومياً",
+        "Duration Days": 90,
+        "Instructions (EN)": "Do not exceed 4g/day. For knee pain.",
+        "Instructions (AR)": "لا تتجاوز 4 غرام يومياً. لآلام الركبة.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      }
+    ],
+    "Last Filled Date": "2026-04-20",
+    "Last Filled Pharmacy ID": "PHM-001",
+    "Linked Appointment ID": "APT-H060",
+    "Linked Diagnosis (EN)": "Hypertension; Type 2 Diabetes; Osteoarthritis",
+    "Linked Diagnosis (AR)": "ارتفاع ضغط الدم؛ السكري من النوع الثاني؛ خشونة المفاصل"
+  },
+  {
+    "Prescription ID": "RX-2026-00801",
+    "Patient ID": "PAT-009",
+    "Prescribing Doctor ID": "DR-013",
+    "Clinic ID": "CLN-001",
+    "Issued Date": "2026-04-25",
+    "Expiration Date": "2026-10-25",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-009",
+        "Name (EN)": "Sertraline",
+        "Name (AR)": "سيرترالين",
+        "Dose": "50mg",
+        "Frequency (EN)": "1 tablet daily in the morning",
+        "Frequency (AR)": "حبة واحدة يومياً في الصباح",
+        "Duration Days": 90,
+        "Instructions (EN)": "Allow 4-6 weeks for full effect. Do not stop suddenly.",
+        "Instructions (AR)": "اسمح بـ 4-6 أسابيع للتأثير الكامل. لا تتوقف فجأة.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      }
+    ],
+    "Last Filled Date": "2026-04-25",
+    "Last Filled Pharmacy ID": "PHM-001",
+    "Linked Appointment ID": "APT-H080",
+    "Linked Diagnosis (EN)": "Generalized Anxiety Disorder; Mild Depression",
+    "Linked Diagnosis (AR)": "اضطراب القلق العام؛ اكتئاب خفيف"
+  },
+  {
+    "Prescription ID": "RX-2026-01201",
+    "Patient ID": "PAT-012",
+    "Prescribing Doctor ID": "DR-018",
+    "Clinic ID": "CLN-002",
+    "Issued Date": "2026-03-30",
+    "Expiration Date": "2026-09-30",
+    "Status": "Active",
+    "Medications": [
+      {
+        "Medication ID": "MED-014",
+        "Name (EN)": "Salbutamol Inhaler",
+        "Name (AR)": "بخاخ سالبوتامول",
+        "Dose": "100mcg/puff",
+        "Frequency (EN)": "2 puffs as needed, max 4 times daily",
+        "Frequency (AR)": "بختين عند الحاجة، بحد أقصى 4 مرات يومياً",
+        "Duration Days": 180,
+        "Instructions (EN)": "Rescue inhaler. Notify doctor if used >2 days/week.",
+        "Instructions (AR)": "بخاخ الإنقاذ. أبلغ الطبيب إذا استخدمته أكثر من يومين أسبوعياً.",
+        "Refills Remaining": 2,
+        "Refills Total": 2
+      }
+    ],
+    "Last Filled Date": "2026-03-30",
+    "Last Filled Pharmacy ID": "PHM-002",
+    "Linked Appointment ID": "APT-H110",
+    "Linked Diagnosis (EN)": "Adult-onset asthma",
+    "Linked Diagnosis (AR)": "ربو لدى البالغين"
+  }
+]

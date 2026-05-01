@@ -1,0 +1,426 @@
+[
+  {
+    "Lab Result ID": "LAB-H002",
+    "Patient ID": "PAT-002",
+    "Ordering Doctor ID": "DR-001",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Lipid Panel",
+    "Test Name (AR)": "تحليل الدهون",
+    "Test Code": "LP",
+    "Order Date": "2026-04-10",
+    "Result Date": "2026-04-11",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H010",
+    "Results": [
+      {
+        "name (EN)": "Total Cholesterol",
+        "name (AR)": "الكوليسترول الكلي",
+        "value": 218,
+        "unit": "mg/dL",
+        "reference_range": "<200",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      },
+      {
+        "name (EN)": "LDL Cholesterol",
+        "name (AR)": "الكوليسترول الضار",
+        "value": 142,
+        "unit": "mg/dL",
+        "reference_range": "<100",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      },
+      {
+        "name (EN)": "HDL Cholesterol",
+        "name (AR)": "الكوليسترول النافع",
+        "value": 48,
+        "unit": "mg/dL",
+        "reference_range": ">40",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "Triglycerides",
+        "name (AR)": "الدهون الثلاثية",
+        "value": 165,
+        "unit": "mg/dL",
+        "reference_range": "<150",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      }
+    ],
+    "Lab Tech": "Sara Hassan, Lab Tech",
+    "Notes (EN)": "All abnormal values flagged. Patient on atorvastatin 40mg - consider dose increase.",
+    "Notes (AR)": "تم تنبيه جميع القيم غير الطبيعية. المريض يتناول أتورفاستاتين 40 ملغ - النظر في زيادة الجرعة."
+  },
+  {
+    "Lab Result ID": "LAB-H001",
+    "Patient ID": "PAT-002",
+    "Ordering Doctor ID": "DR-001",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Lipid Panel (Pre-procedure baseline)",
+    "Test Name (AR)": "تحليل الدهون (خط الأساس قبل الإجراء)",
+    "Test Code": "LP",
+    "Order Date": "2026-01-25",
+    "Result Date": "2026-01-26",
+    "Status": "Released",
+    "Linked Appointment ID": null,
+    "Results": [
+      {
+        "name (EN)": "Total Cholesterol",
+        "name (AR)": "الكوليسترول الكلي",
+        "value": 268,
+        "unit": "mg/dL",
+        "reference_range": "<200",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      },
+      {
+        "name (EN)": "LDL Cholesterol",
+        "name (AR)": "الكوليسترول الضار",
+        "value": 195,
+        "unit": "mg/dL",
+        "reference_range": "<100",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      },
+      {
+        "name (EN)": "HDL Cholesterol",
+        "name (AR)": "الكوليسترول النافع",
+        "value": 38,
+        "unit": "mg/dL",
+        "reference_range": ">40",
+        "flag (EN)": "Low",
+        "flag (AR)": "منخفض"
+      },
+      {
+        "name (EN)": "Triglycerides",
+        "name (AR)": "الدهون الثلاثية",
+        "value": 220,
+        "unit": "mg/dL",
+        "reference_range": "<150",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      }
+    ],
+    "Lab Tech": "Sara Hassan, Lab Tech",
+    "Notes (EN)": "Pre-angioplasty baseline. Patient subsequently started on high-intensity statin therapy.",
+    "Notes (AR)": "خط الأساس قبل توسيع الشرايين. بدأ المريض بعد ذلك العلاج بالستاتين عالي الكثافة."
+  },
+  {
+    "Lab Result ID": "LAB-H003",
+    "Patient ID": "PAT-002",
+    "Ordering Doctor ID": "DR-001",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Comprehensive Metabolic Panel (CMP)",
+    "Test Name (AR)": "تحليل التمثيل الغذائي الشامل",
+    "Test Code": "CMP",
+    "Order Date": "2026-04-30",
+    "Result Date": null,
+    "Status": "Pending",
+    "Estimated Available": "2026-05-02",
+    "Linked Appointment ID": null,
+    "Results": [],
+    "Notes (EN)": "Routine CMP to monitor kidney/liver function on statins. Expected within 24 hours.",
+    "Notes (AR)": "تحليل دوري لمراقبة وظائف الكلى/الكبد مع تناول الستاتين. متوقع خلال 24 ساعة."
+  },
+  {
+    "Lab Result ID": "LAB-H010",
+    "Patient ID": "PAT-001",
+    "Ordering Doctor ID": "DR-005",
+    "Clinic ID": "CLN-001",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Annual Health Check Panel",
+    "Test Name (AR)": "تحليل الفحص السنوي",
+    "Test Code": "ANNUAL",
+    "Order Date": "2025-09-12",
+    "Result Date": "2025-09-13",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H010",
+    "Results": [
+      {
+        "name (EN)": "Glucose (Fasting)",
+        "name (AR)": "السكر (صائم)",
+        "value": 92,
+        "unit": "mg/dL",
+        "reference_range": "70-100",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "Total Cholesterol",
+        "name (AR)": "الكوليسترول الكلي",
+        "value": 178,
+        "unit": "mg/dL",
+        "reference_range": "<200",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "Hemoglobin",
+        "name (AR)": "الهيموجلوبين",
+        "value": 14.5,
+        "unit": "g/dL",
+        "reference_range": "13.5-17.5",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      }
+    ],
+    "Lab Tech": "Ali Ahmad, Lab Tech",
+    "Notes (EN)": "All values within normal range.",
+    "Notes (AR)": "جميع القيم ضمن المعدل الطبيعي."
+  },
+  {
+    "Lab Result ID": "LAB-H020",
+    "Patient ID": "PAT-003",
+    "Ordering Doctor ID": "DR-004",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Diabetes Monitoring Panel",
+    "Test Name (AR)": "تحليل متابعة السكري",
+    "Test Code": "DM-PANEL",
+    "Order Date": "2026-02-08",
+    "Result Date": "2026-02-09",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H020",
+    "Results": [
+      {
+        "name (EN)": "HbA1c",
+        "name (AR)": "السكر التراكمي",
+        "value": 7.4,
+        "unit": "%",
+        "reference_range": "<7.0 (target for diabetics)",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      },
+      {
+        "name (EN)": "Fasting Glucose",
+        "name (AR)": "السكر الصائم",
+        "value": 142,
+        "unit": "mg/dL",
+        "reference_range": "80-130 (target for diabetics)",
+        "flag (EN)": "High",
+        "flag (AR)": "مرتفع"
+      },
+      {
+        "name (EN)": "Creatinine",
+        "name (AR)": "الكرياتينين",
+        "value": 0.9,
+        "unit": "mg/dL",
+        "reference_range": "0.6-1.1",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "Microalbumin",
+        "name (AR)": "الميكروألبومين",
+        "value": 18,
+        "unit": "mg/g",
+        "reference_range": "<30",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      }
+    ],
+    "Lab Tech": "Sara Hassan, Lab Tech",
+    "Notes (EN)": "HbA1c improving from 8.1% three months ago. Continue current regimen with lifestyle reinforcement.",
+    "Notes (AR)": "السكر التراكمي يتحسن من 8.1% قبل ثلاثة أشهر. الاستمرار في النظام الحالي مع تعزيز نمط الحياة."
+  },
+  {
+    "Lab Result ID": "LAB-H021",
+    "Patient ID": "PAT-003",
+    "Ordering Doctor ID": "DR-004",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Diabetes Monitoring Panel",
+    "Test Name (AR)": "تحليل متابعة السكري",
+    "Test Code": "DM-PANEL",
+    "Order Date": "2026-04-29",
+    "Result Date": null,
+    "Status": "Pending",
+    "Estimated Available": "2026-05-01",
+    "Linked Appointment ID": null,
+    "Results": [],
+    "Notes (EN)": "3-month follow-up labs ordered ahead of next visit.",
+    "Notes (AR)": "تحاليل المتابعة قبل الزيارة القادمة."
+  },
+  {
+    "Lab Result ID": "LAB-H030",
+    "Patient ID": "PAT-004",
+    "Ordering Doctor ID": "DR-010",
+    "Clinic ID": "CLN-003",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Glucose Tolerance Test (GTT)",
+    "Test Name (AR)": "اختبار تحمل الجلوكوز",
+    "Test Code": "GTT",
+    "Order Date": "2026-04-15",
+    "Result Date": "2026-04-16",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H030",
+    "Results": [
+      {
+        "name (EN)": "Fasting Glucose",
+        "name (AR)": "السكر الصائم",
+        "value": 88,
+        "unit": "mg/dL",
+        "reference_range": "<92",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "1-Hour Glucose",
+        "name (AR)": "الجلوكوز بعد ساعة",
+        "value": 152,
+        "unit": "mg/dL",
+        "reference_range": "<180",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "2-Hour Glucose",
+        "name (AR)": "الجلوكوز بعد ساعتين",
+        "value": 138,
+        "unit": "mg/dL",
+        "reference_range": "<153",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      }
+    ],
+    "Lab Tech": "Layla Hammad, Lab Tech",
+    "Notes (EN)": "GTT normal - no gestational diabetes.",
+    "Notes (AR)": "اختبار تحمل الجلوكوز طبيعي - لا يوجد سكري حمل."
+  },
+  {
+    "Lab Result ID": "LAB-H060",
+    "Patient ID": "PAT-007",
+    "Ordering Doctor ID": "DR-007",
+    "Clinic ID": "CLN-001",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Comprehensive Metabolic & Diabetes Panel",
+    "Test Name (AR)": "تحليل التمثيل الغذائي الشامل والسكري",
+    "Test Code": "CMP-DM",
+    "Order Date": "2026-03-18",
+    "Result Date": "2026-03-19",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H060",
+    "Results": [
+      {
+        "name (EN)": "HbA1c",
+        "name (AR)": "السكر التراكمي",
+        "value": 7.0,
+        "unit": "%",
+        "reference_range": "<7.5 (elderly target)",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "Creatinine",
+        "name (AR)": "الكرياتينين",
+        "value": 1.3,
+        "unit": "mg/dL",
+        "reference_range": "0.7-1.3",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "Potassium",
+        "name (AR)": "البوتاسيوم",
+        "value": 4.2,
+        "unit": "mEq/L",
+        "reference_range": "3.5-5.0",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      }
+    ],
+    "Lab Tech": "Ali Ahmad, Lab Tech",
+    "Notes (EN)": "Stable values for age and comorbidities.",
+    "Notes (AR)": "قيم مستقرة بالنسبة للعمر والأمراض المصاحبة."
+  },
+  {
+    "Lab Result ID": "LAB-H070",
+    "Patient ID": "PAT-008",
+    "Ordering Doctor ID": "DR-005",
+    "Clinic ID": "CLN-001",
+    "Test Type": "Imaging",
+    "Test Name (EN)": "Abdominal Ultrasound",
+    "Test Name (AR)": "موجات صوتية للبطن",
+    "Test Code": "US-ABD",
+    "Order Date": "2026-04-15",
+    "Result Date": "2026-04-15",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H070",
+    "Results": [],
+    "Imaging Findings (EN)": "Right kidney: normal size and parenchyma. No residual stones visualized. Mild hydronephrosis - resolving. Left kidney: unremarkable. Bladder: normal.",
+    "Imaging Findings (AR)": "الكلية اليمنى: حجم وأنسجة طبيعية. لا توجد حصى متبقية مرئية. تمدد خفيف - في طور التحسن. الكلية اليسرى: طبيعية. المثانة: طبيعية.",
+    "Radiologist": "Dr. Nadia Al-Bishi",
+    "Notes (EN)": "No residual stones. Recommend follow-up if symptoms recur.",
+    "Notes (AR)": "لا توجد حصى متبقية. يوصى بالمتابعة إذا تكررت الأعراض."
+  },
+  {
+    "Lab Result ID": "LAB-H100",
+    "Patient ID": "PAT-011",
+    "Ordering Doctor ID": "DR-012",
+    "Clinic ID": "CLN-001",
+    "Test Type": "Imaging",
+    "Test Name (EN)": "MRI Lumbar Spine",
+    "Test Name (AR)": "تصوير بالرنين المغناطيسي للعمود الفقري القطني",
+    "Test Code": "MRI-LS",
+    "Order Date": "2026-04-05",
+    "Result Date": "2026-04-08",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H101",
+    "Results": [],
+    "Imaging Findings (EN)": "L4-L5 disc bulge with mild central canal stenosis. No nerve root compression. L5-S1: mild facet arthropathy. No fracture or destructive lesion.",
+    "Imaging Findings (AR)": "انتفاخ في القرص L4-L5 مع تضيق خفيف في القناة المركزية. لا يوجد ضغط على جذور الأعصاب. L5-S1: التهاب مفصلي خفيف. لا توجد كسور أو آفات تدميرية.",
+    "Radiologist": "Dr. Nadia Al-Bishi",
+    "Notes (EN)": "Findings consistent with mechanical lower back pain. Conservative management indicated.",
+    "Notes (AR)": "النتائج تتفق مع آلام أسفل الظهر الميكانيكية. يُنصح بالعلاج التحفظي."
+  },
+  {
+    "Lab Result ID": "LAB-H110",
+    "Patient ID": "PAT-012",
+    "Ordering Doctor ID": "DR-018",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Single Test",
+    "Test Name (EN)": "Spirometry (Pulmonary Function Test)",
+    "Test Name (AR)": "اختبار وظائف الرئة",
+    "Test Code": "PFT",
+    "Order Date": "2026-03-30",
+    "Result Date": "2026-03-30",
+    "Status": "Released",
+    "Linked Appointment ID": "APT-H110",
+    "Results": [
+      {
+        "name (EN)": "FEV1",
+        "name (AR)": "حجم الزفير القسري في الثانية الأولى",
+        "value": 2.7,
+        "unit": "L",
+        "reference_range": "Predicted: 2.6-3.4",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "FVC",
+        "name (AR)": "السعة الحيوية القسرية",
+        "value": 3.5,
+        "unit": "L",
+        "reference_range": "Predicted: 3.2-4.0",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      },
+      {
+        "name (EN)": "FEV1/FVC Ratio",
+        "name (AR)": "نسبة FEV1/FVC",
+        "value": 77,
+        "unit": "%",
+        "reference_range": ">70%",
+        "flag (EN)": "Normal",
+        "flag (AR)": "طبيعي"
+      }
+    ],
+    "Notes (EN)": "Stable lung function. Asthma well controlled on current regimen.",
+    "Notes (AR)": "وظائف الرئة مستقرة. الربو مسيطر عليه جيداً بالنظام الحالي."
+  }
+]

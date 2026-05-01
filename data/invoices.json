@@ -1,0 +1,257 @@
+[
+  {
+    "Invoice ID": "INV-H003",
+    "Patient ID": "PAT-002",
+    "Linked Appointment ID": "APT-H003",
+    "Linked Lab Result ID": "LAB-H002",
+    "Issue Date": "2026-04-10",
+    "Due Date": "2026-05-10",
+    "Items": [
+      {
+        "description (EN)": "Cardiology Follow-up Consultation",
+        "description (AR)": "استشارة متابعة قلبية",
+        "amount": 400
+      },
+      {
+        "description (EN)": "Lipid Panel (Lab Test)",
+        "description (AR)": "تحليل الدهون",
+        "amount": 200
+      }
+    ],
+    "Subtotal SAR": 600,
+    "Insurance Provider (EN)": "Tawuniya VIP",
+    "Insurance Provider (AR)": "التعاونية كبار الشخصيات",
+    "Insurance Covered SAR": 480,
+    "Patient Due SAR": 120,
+    "Status": "Outstanding",
+    "Payment Method": null,
+    "Payment Date": null,
+    "Notes (EN)": "Outstanding. Payment due by May 10, 2026.",
+    "Notes (AR)": "غير مدفوعة. مستحقة الدفع بحلول 10 مايو 2026."
+  },
+  {
+    "Invoice ID": "INV-H002",
+    "Patient ID": "PAT-002",
+    "Linked Appointment ID": "APT-H002",
+    "Linked Lab Result ID": null,
+    "Issue Date": "2026-02-25",
+    "Due Date": "2026-03-25",
+    "Items": [
+      {
+        "description (EN)": "Cardiology Follow-up Consultation",
+        "description (AR)": "استشارة متابعة قلبية",
+        "amount": 400
+      }
+    ],
+    "Subtotal SAR": 400,
+    "Insurance Provider (EN)": "Tawuniya VIP",
+    "Insurance Provider (AR)": "التعاونية كبار الشخصيات",
+    "Insurance Covered SAR": 400,
+    "Patient Due SAR": 0,
+    "Status": "Paid",
+    "Payment Method": "Credit Card (insurance only)",
+    "Payment Date": "2026-02-25",
+    "Notes (EN)": "Fully covered by insurance.",
+    "Notes (AR)": "مغطاة بالكامل من قبل التأمين."
+  },
+  {
+    "Invoice ID": "INV-H001",
+    "Patient ID": "PAT-002",
+    "Linked Appointment ID": "APT-H001",
+    "Linked Lab Result ID": null,
+    "Issue Date": "2026-01-29",
+    "Due Date": "2026-02-29",
+    "Items": [
+      {
+        "description (EN)": "Coronary Angioplasty Procedure",
+        "description (AR)": "إجراء توسيع الشرايين التاجية",
+        "amount": 25000
+      },
+      {
+        "description (EN)": "Drug-eluting Stent (1)",
+        "description (AR)": "دعامة دوائية (1)",
+        "amount": 8500
+      },
+      {
+        "description (EN)": "Inpatient Stay (1 night)",
+        "description (AR)": "إقامة بالمستشفى (ليلة واحدة)",
+        "amount": 2500
+      },
+      {
+        "description (EN)": "Pre-procedure Tests",
+        "description (AR)": "فحوصات ما قبل الإجراء",
+        "amount": 1500
+      }
+    ],
+    "Subtotal SAR": 37500,
+    "Insurance Provider (EN)": "Tawuniya VIP",
+    "Insurance Provider (AR)": "التعاونية كبار الشخصيات",
+    "Insurance Covered SAR": 37500,
+    "Patient Due SAR": 0,
+    "Status": "Paid",
+    "Payment Method": "Credit Card (insurance only)",
+    "Payment Date": "2026-02-15",
+    "Notes (EN)": "VIP plan, fully covered.",
+    "Notes (AR)": "خطة كبار الشخصيات، مغطاة بالكامل."
+  },
+  {
+    "Invoice ID": "INV-H020",
+    "Patient ID": "PAT-003",
+    "Linked Appointment ID": "APT-H020",
+    "Linked Lab Result ID": "LAB-H020",
+    "Issue Date": "2026-02-10",
+    "Due Date": "2026-03-10",
+    "Items": [
+      {
+        "description (EN)": "Endocrinology Follow-up",
+        "description (AR)": "متابعة الغدد الصماء",
+        "amount": 350
+      },
+      {
+        "description (EN)": "Diabetes Monitoring Panel",
+        "description (AR)": "تحليل متابعة السكري",
+        "amount": 250
+      }
+    ],
+    "Subtotal SAR": 600,
+    "Insurance Provider (EN)": "Bupa Premium",
+    "Insurance Provider (AR)": "بوبا ممتاز",
+    "Insurance Covered SAR": 590,
+    "Patient Due SAR": 10,
+    "Status": "Paid",
+    "Payment Method": "Credit Card",
+    "Payment Date": "2026-02-10",
+    "Notes (EN)": "Standard co-pay.",
+    "Notes (AR)": "دفع مشترك قياسي."
+  },
+  {
+    "Invoice ID": "INV-H050",
+    "Patient ID": "PAT-006",
+    "Linked Appointment ID": "APT-H050",
+    "Linked Lab Result ID": null,
+    "Issue Date": "2026-04-08",
+    "Due Date": "2026-05-08",
+    "Items": [
+      {
+        "description (EN)": "Laparoscopic Cholecystectomy",
+        "description (AR)": "استئصال المرارة بالمنظار",
+        "amount": 18000
+      },
+      {
+        "description (EN)": "Anesthesia Services",
+        "description (AR)": "خدمات التخدير",
+        "amount": 2500
+      },
+      {
+        "description (EN)": "Surgical Supplies",
+        "description (AR)": "مستلزمات جراحية",
+        "amount": 1200
+      },
+      {
+        "description (EN)": "Day Surgery Recovery",
+        "description (AR)": "تعافي الجراحة النهارية",
+        "amount": 800
+      }
+    ],
+    "Subtotal SAR": 22500,
+    "Insurance Provider (EN)": "Tawuniya Standard",
+    "Insurance Provider (AR)": "التعاونية القياسي",
+    "Insurance Covered SAR": 19125,
+    "Patient Due SAR": 3375,
+    "Status": "Paid",
+    "Payment Method": "Bank Transfer",
+    "Payment Date": "2026-04-15",
+    "Notes (EN)": "Pre-authorized. 15% co-insurance.",
+    "Notes (AR)": "تم اعتماده مسبقاً. تأمين مشترك 15%."
+  },
+  {
+    "Invoice ID": "INV-H100",
+    "Patient ID": "PAT-011",
+    "Linked Appointment ID": "APT-H100",
+    "Linked Lab Result ID": null,
+    "Issue Date": "2026-02-18",
+    "Due Date": "2026-03-18",
+    "Items": [
+      {
+        "description (EN)": "Orthopedic Consultation",
+        "description (AR)": "استشارة عظام",
+        "amount": 400
+      },
+      {
+        "description (EN)": "Hyaluronic Acid Injection",
+        "description (AR)": "حقنة حمض الهيالورونيك",
+        "amount": 1200
+      }
+    ],
+    "Subtotal SAR": 1600,
+    "Insurance Provider (EN)": "MedGulf Basic",
+    "Insurance Provider (AR)": "ميد غلف الأساسي",
+    "Insurance Covered SAR": 960,
+    "Patient Due SAR": 640,
+    "Status": "Outstanding",
+    "Payment Method": null,
+    "Payment Date": null,
+    "Notes (EN)": "Overdue. Payment plan available on request.",
+    "Notes (AR)": "متأخرة الدفع. خطة سداد متاحة عند الطلب."
+  },
+  {
+    "Invoice ID": "INV-H101",
+    "Patient ID": "PAT-011",
+    "Linked Appointment ID": "APT-H101",
+    "Linked Lab Result ID": "LAB-H100",
+    "Issue Date": "2026-04-12",
+    "Due Date": "2026-05-12",
+    "Items": [
+      {
+        "description (EN)": "Orthopedic Follow-up",
+        "description (AR)": "متابعة عظام",
+        "amount": 300
+      },
+      {
+        "description (EN)": "MRI Lumbar Spine",
+        "description (AR)": "تصوير بالرنين المغناطيسي للعمود القطني",
+        "amount": 1800
+      }
+    ],
+    "Subtotal SAR": 2100,
+    "Insurance Provider (EN)": "MedGulf Basic",
+    "Insurance Provider (AR)": "ميد غلف الأساسي",
+    "Insurance Covered SAR": 1260,
+    "Patient Due SAR": 840,
+    "Status": "Outstanding",
+    "Payment Method": null,
+    "Payment Date": null,
+    "Notes (EN)": "MRI required pre-authorization (approved). Payment due by May 12.",
+    "Notes (AR)": "التصوير بالرنين المغناطيسي يتطلب اعتماد مسبق (تمت الموافقة). الدفع مستحق بحلول 12 مايو."
+  },
+  {
+    "Invoice ID": "INV-H010",
+    "Patient ID": "PAT-001",
+    "Linked Appointment ID": "APT-H010",
+    "Linked Lab Result ID": "LAB-H010",
+    "Issue Date": "2025-09-12",
+    "Due Date": "2025-10-12",
+    "Items": [
+      {
+        "description (EN)": "Annual Health Check",
+        "description (AR)": "الفحص السنوي",
+        "amount": 300
+      },
+      {
+        "description (EN)": "Annual Lab Panel",
+        "description (AR)": "تحليل المختبر السنوي",
+        "amount": 350
+      }
+    ],
+    "Subtotal SAR": 650,
+    "Insurance Provider (EN)": "Bupa Standard",
+    "Insurance Provider (AR)": "بوبا القياسي",
+    "Insurance Covered SAR": 620,
+    "Patient Due SAR": 30,
+    "Status": "Paid",
+    "Payment Method": "mada",
+    "Payment Date": "2025-09-12",
+    "Notes (EN)": "Standard co-pay.",
+    "Notes (AR)": "دفع مشترك قياسي."
+  }
+]
