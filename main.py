@@ -329,6 +329,12 @@ def get_appointment_slots(
     only_open: bool = True,
     limit: int = 20,
 ):
+    # Default from_date to today if not provided. This prevents stale past-dated
+    # slots from being surfaced as "available". Callers can still pass an explicit
+    # from_date in the past if they need historical data for some reason.
+    if from_date is None:
+        from_date = date.today().isoformat()
+
     results = [dict(s) for s in doctor_availability]
 
     if only_open:
