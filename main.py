@@ -11,7 +11,7 @@ Healthcare Agent API - v1.0
 """
 import json
 import os
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -326,15 +326,11 @@ def get_appointment_slots(
     city: Optional[str] = None,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    near_date: Optional[str] = None,
+    near_window_days: int = 7,
     only_open: bool = True,
     limit: int = 20,
 ):
-    # Default from_date to today if not provided. This prevents stale past-dated
-    # slots from being surfaced as "available". Callers can still pass an explicit
-    # from_date in the past if they need historical data for some reason.
-    if from_date is None:
-        from_date = date.today().isoformat()
-
     results = [dict(s) for s in doctor_availability]
 
     if only_open:
@@ -357,7 +353,28 @@ def get_appointment_slots(
     if to_date:
         results = [s for s in results if s["Date"] <= to_date]
 
-    results.sort(key=lambda s: (s["Date"], s["Start Time"]))
+    # near_date: returns slots within ±near_window_days of the target date,
+    # sorted by absolute proximity to that date. Use this when the patient
+    # mentions a specific date or "near a date" — it lets the agent express
+    # "around May 8" cleanly without having to compute a date window itself.
+    # Falls back to the default sort if near_date is missing or unparseable.
+    target = None
+    if near_date:
+        try:
+            target = datetime.strptime(near_date, "%Y-%m-%d").date()
+        except ValueError:
+            target = None
+    if target is not None:
+        window_start = (target - timedelta(days=near_window_days)).isoformat()
+        window_end = (target + timedelta(days=near_window_days)).isoformat()
+        results = [s for s in results if window_start <= s["Date"] <= window_end]
+        results.sort(key=lambda s: (
+            abs((datetime.strptime(s["Date"], "%Y-%m-%d").date() - target).days),
+            s["Date"],
+            s["Start Time"],
+        ))
+    else:
+        results.sort(key=lambda s: (s["Date"], s["Start Time"]))
     results = results[:limit]
 
     for s in results:
