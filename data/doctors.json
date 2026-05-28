@@ -1,0 +1,459 @@
+[
+  {
+    "Doctor ID": "DR-001",
+    "Full Name (EN)": "Dr. Khalid Al-Fahad",
+    "Full Name (AR)": "د. خالد الفهد",
+    "Specialty (EN)": "Cardiology",
+    "Specialty (AR)": "أمراض القلب",
+    "Sub-specialty (EN)": "Interventional Cardiology",
+    "Sub-specialty (AR)": "قسطرة قلبية تداخلية",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 22,
+    "Qualifications": "MD, FRCP (UK), Fellowship in Interventional Cardiology — Cleveland Clinic",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 600,
+    "Follow-up Fee SAR": 400,
+    "Bio (EN)": "Dr. Al-Fahad specializes in coronary angioplasty, stent placement, and post-cardiac event care. 22 years of experience treating high-risk cardiac patients.",
+    "Bio (AR)": "د. الفهد متخصص في توسيع الشرايين التاجية وزراعة الدعامات والرعاية بعد الأحداث القلبية. 22 عاماً من الخبرة في علاج مرضى القلب عالي المخاطر.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-002",
+    "Full Name (EN)": "Dr. Sara Al-Mutairi",
+    "Full Name (AR)": "د. سارة المطيري",
+    "Specialty (EN)": "Cardiology",
+    "Specialty (AR)": "أمراض القلب",
+    "Sub-specialty (EN)": "Non-invasive Cardiology",
+    "Sub-specialty (AR)": "أمراض القلب غير الجراحية",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 14,
+    "Qualifications": "MD, MRCP (UK), Fellowship in Echocardiography",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Mutairi focuses on echocardiography, stress testing, and preventive cardiology. Particularly experienced with women's cardiovascular health.",
+    "Bio (AR)": "د. المطيري تركز على تخطيط صدى القلب واختبارات الجهد وأمراض القلب الوقائية. لديها خبرة خاصة في صحة القلب لدى النساء.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-003",
+    "Full Name (EN)": "Dr. Ahmad Al-Otaibi",
+    "Full Name (AR)": "د. أحمد العتيبي",
+    "Specialty (EN)": "Gastroenterology",
+    "Specialty (AR)": "أمراض الجهاز الهضمي",
+    "Sub-specialty (EN)": "Endoscopy & Hepatology",
+    "Sub-specialty (AR)": "تنظير وأمراض الكبد",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 18,
+    "Qualifications": "MD, FACP, Fellowship in Gastroenterology — Mayo Clinic",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [
+      "CLN-002"
+    ],
+    "Consultation Fee SAR": 550,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Otaibi performs upper and lower endoscopy, treats IBD, GERD, and liver conditions. Skilled in advanced therapeutic endoscopy.",
+    "Bio (AR)": "د. العتيبي يجري التنظير العلوي والسفلي ويعالج التهاب الأمعاء والارتجاع وأمراض الكبد. ماهر في التنظير العلاجي المتقدم.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-004",
+    "Full Name (EN)": "Dr. Layla Al-Ghamdi",
+    "Full Name (AR)": "د. ليلى الغامدي",
+    "Specialty (EN)": "Endocrinology",
+    "Specialty (AR)": "الغدد الصماء",
+    "Sub-specialty (EN)": "Diabetes & Metabolism",
+    "Sub-specialty (AR)": "السكري والتمثيل الغذائي",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English",
+      "French"
+    ],
+    "Years of Experience": 16,
+    "Qualifications": "MD, MRCP, Fellowship in Endocrinology — McGill University",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Ghamdi specializes in diabetes management (Type 1 and Type 2), thyroid disorders, and metabolic syndrome. Patient-centered insulin titration.",
+    "Bio (AR)": "د. الغامدي متخصصة في إدارة السكري (النوع 1 و2) واضطرابات الغدة الدرقية ومتلازمة التمثيل الغذائي. تتبع نهج مرضي محوري في تعديل الأنسولين.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-005",
+    "Full Name (EN)": "Dr. Mohammed Al-Harbi",
+    "Full Name (AR)": "د. محمد الحربي",
+    "Specialty (EN)": "Family Medicine",
+    "Specialty (AR)": "طب الأسرة",
+    "Sub-specialty (EN)": "General Practice",
+    "Sub-specialty (AR)": "ممارس عام",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 12,
+    "Qualifications": "MBBS, SBFM (Saudi Board of Family Medicine)",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 300,
+    "Follow-up Fee SAR": 200,
+    "Bio (EN)": "Dr. Al-Harbi handles general adult care, preventive health screenings, and chronic disease management. First point of contact for many patients.",
+    "Bio (AR)": "د. الحربي يهتم بالرعاية العامة للبالغين والفحوصات الوقائية وإدارة الأمراض المزمنة. نقطة الاتصال الأولى لكثير من المرضى.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-006",
+    "Full Name (EN)": "Dr. Nora Al-Saud",
+    "Full Name (AR)": "د. نورة آل سعود",
+    "Specialty (EN)": "Family Medicine",
+    "Specialty (AR)": "طب الأسرة",
+    "Sub-specialty (EN)": "Women's Health",
+    "Sub-specialty (AR)": "صحة المرأة",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 10,
+    "Qualifications": "MBBS, SBFM, Diploma in Women's Health",
+    "Primary Clinic ID": "CLN-003",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 300,
+    "Follow-up Fee SAR": 200,
+    "Bio (EN)": "Dr. Al-Saud focuses on family medicine with special interest in women's preventive care and chronic disease management.",
+    "Bio (AR)": "د. آل سعود تركز على طب الأسرة مع اهتمام خاص بالرعاية الوقائية للمرأة وإدارة الأمراض المزمنة.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-007",
+    "Full Name (EN)": "Dr. Saleh Al-Qahtani",
+    "Full Name (AR)": "د. صالح القحطاني",
+    "Specialty (EN)": "Internal Medicine",
+    "Specialty (AR)": "الطب الباطني",
+    "Sub-specialty (EN)": "General Internal Medicine",
+    "Sub-specialty (AR)": "طب باطني عام",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 20,
+    "Qualifications": "MD, FACP, MRCP (UK)",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [
+      "CLN-002"
+    ],
+    "Consultation Fee SAR": 450,
+    "Follow-up Fee SAR": 300,
+    "Bio (EN)": "Dr. Al-Qahtani provides comprehensive adult medical care, manages complex multi-system conditions, and coordinates with specialists.",
+    "Bio (AR)": "د. القحطاني يقدم رعاية طبية شاملة للبالغين ويعالج الحالات المعقدة متعددة الأجهزة وينسق مع الاختصاصيين.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-008",
+    "Full Name (EN)": "Dr. Hessah Al-Mansouri",
+    "Full Name (AR)": "د. حصة المنصوري",
+    "Specialty (EN)": "Pediatrics",
+    "Specialty (AR)": "طب الأطفال",
+    "Sub-specialty (EN)": "General Pediatrics",
+    "Sub-specialty (AR)": "طب أطفال عام",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 13,
+    "Qualifications": "MD, SBP (Saudi Board of Pediatrics), Fellowship in General Pediatrics",
+    "Primary Clinic ID": "CLN-003",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 350,
+    "Follow-up Fee SAR": 250,
+    "Bio (EN)": "Dr. Al-Mansouri provides comprehensive care for children from newborn to adolescents. Specializes in vaccinations, growth monitoring, and common childhood illnesses.",
+    "Bio (AR)": "د. المنصوري تقدم رعاية شاملة للأطفال من حديثي الولادة إلى المراهقين. متخصصة في التطعيمات ومتابعة النمو وأمراض الطفولة الشائعة.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-009",
+    "Full Name (EN)": "Dr. Faisal Al-Dossary",
+    "Full Name (AR)": "د. فيصل الدوسري",
+    "Specialty (EN)": "Pediatrics",
+    "Specialty (AR)": "طب الأطفال",
+    "Sub-specialty (EN)": "Pediatric Cardiology",
+    "Sub-specialty (AR)": "أمراض القلب لدى الأطفال",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 19,
+    "Qualifications": "MD, FRCPCH, Fellowship in Pediatric Cardiology — Boston Children's Hospital",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 600,
+    "Follow-up Fee SAR": 400,
+    "Bio (EN)": "Dr. Al-Dossary specializes in congenital heart conditions and pediatric cardiac care.",
+    "Bio (AR)": "د. الدوسري متخصص في أمراض القلب الخلقية والرعاية القلبية للأطفال.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-010",
+    "Full Name (EN)": "Dr. Aisha Al-Zahrani",
+    "Full Name (AR)": "د. عائشة الزهراني",
+    "Specialty (EN)": "OB-GYN",
+    "Specialty (AR)": "نساء وولادة",
+    "Sub-specialty (EN)": "Obstetrics & High-Risk Pregnancy",
+    "Sub-specialty (AR)": "ولادة وحمل عالي الخطورة",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 15,
+    "Qualifications": "MD, MRCOG (UK), Fellowship in Maternal-Fetal Medicine",
+    "Primary Clinic ID": "CLN-003",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Zahrani provides obstetric care including high-risk pregnancy management, prenatal care, and gynecological services.",
+    "Bio (AR)": "د. الزهراني تقدم رعاية الولادة بما في ذلك إدارة الحمل عالي الخطورة والرعاية قبل الولادة وخدمات أمراض النساء.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-011",
+    "Full Name (EN)": "Dr. Reem Al-Sulaiman",
+    "Full Name (AR)": "د. ريم السليمان",
+    "Specialty (EN)": "Dermatology",
+    "Specialty (AR)": "الأمراض الجلدية",
+    "Sub-specialty (EN)": "Medical & Cosmetic Dermatology",
+    "Sub-specialty (AR)": "الأمراض الجلدية الطبية والتجميلية",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 11,
+    "Qualifications": "MD, SBD (Saudi Board of Dermatology), Fellowship in Cosmetic Dermatology",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [
+      "CLN-003"
+    ],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Sulaiman treats acne, eczema, psoriasis, skin cancer screening, and offers cosmetic procedures.",
+    "Bio (AR)": "د. السليمان تعالج حب الشباب والأكزيما والصدفية وفحص سرطان الجلد وتقدم إجراءات تجميلية.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-012",
+    "Full Name (EN)": "Dr. Bandar Al-Subaie",
+    "Full Name (AR)": "د. بندر السبيعي",
+    "Specialty (EN)": "Orthopedics",
+    "Specialty (AR)": "جراحة العظام",
+    "Sub-specialty (EN)": "Sports Medicine & Joint Surgery",
+    "Sub-specialty (AR)": "الطب الرياضي وجراحة المفاصل",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 17,
+    "Qualifications": "MD, FRCSC (Canada), Fellowship in Sports Medicine",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 550,
+    "Follow-up Fee SAR": 400,
+    "Bio (EN)": "Dr. Al-Subaie specializes in knee and shoulder injuries, joint replacement, and sports-related orthopedic conditions.",
+    "Bio (AR)": "د. السبيعي متخصص في إصابات الركبة والكتف واستبدال المفاصل والحالات الرياضية لجراحة العظام.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-013",
+    "Full Name (EN)": "Dr. Yasmin Al-Rashed",
+    "Full Name (AR)": "د. ياسمين الراشد",
+    "Specialty (EN)": "Psychiatry",
+    "Specialty (AR)": "الطب النفسي",
+    "Sub-specialty (EN)": "Adult Psychiatry & Anxiety Disorders",
+    "Sub-specialty (AR)": "الطب النفسي للبالغين واضطرابات القلق",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 12,
+    "Qualifications": "MD, MRCPsych (UK)",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 400,
+    "Bio (EN)": "Dr. Al-Rashed treats anxiety, depression, PTSD, and stress-related conditions. Combines medication management with psychotherapy referrals.",
+    "Bio (AR)": "د. الراشد تعالج القلق والاكتئاب واضطراب ما بعد الصدمة والحالات المتعلقة بالضغط النفسي. تجمع بين إدارة الأدوية والإحالة للعلاج النفسي.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-014",
+    "Full Name (EN)": "Dr. Tariq Al-Ahmari",
+    "Full Name (AR)": "د. طارق الأحمري",
+    "Specialty (EN)": "Neurology",
+    "Specialty (AR)": "طب الأعصاب",
+    "Sub-specialty (EN)": "Headache & Movement Disorders",
+    "Sub-specialty (AR)": "اضطرابات الصداع والحركة",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 14,
+    "Qualifications": "MD, ABPN (USA Board)",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 550,
+    "Follow-up Fee SAR": 400,
+    "Bio (EN)": "Dr. Al-Ahmari treats migraines, epilepsy, Parkinson's disease, and other neurological conditions.",
+    "Bio (AR)": "د. الأحمري يعالج الصداع النصفي والصرع ومرض باركنسون وحالات عصبية أخرى.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-015",
+    "Full Name (EN)": "Dr. Omar Al-Otaibi",
+    "Full Name (AR)": "د. عمر العتيبي",
+    "Specialty (EN)": "ENT",
+    "Specialty (AR)": "أنف وأذن وحنجرة",
+    "Sub-specialty (EN)": "Otolaryngology & Audiology",
+    "Sub-specialty (AR)": "أمراض الأنف والأذن والحنجرة والسمعيات",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 13,
+    "Qualifications": "MD, FRCS-ORL (UK)",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 450,
+    "Follow-up Fee SAR": 300,
+    "Bio (EN)": "Dr. Al-Otaibi treats sinus infections, hearing loss, tonsillitis, and ENT-related allergies.",
+    "Bio (AR)": "د. العتيبي يعالج التهابات الجيوب الأنفية وفقدان السمع والتهاب اللوزتين والحساسية المرتبطة بالأنف والأذن والحنجرة.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-016",
+    "Full Name (EN)": "Dr. Fahad Al-Mutairi",
+    "Full Name (AR)": "د. فهد المطيري",
+    "Specialty (EN)": "General Surgery",
+    "Specialty (AR)": "الجراحة العامة",
+    "Sub-specialty (EN)": "Laparoscopic Surgery",
+    "Sub-specialty (AR)": "الجراحة بالمنظار",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 21,
+    "Qualifications": "MD, FRCS, Fellowship in Minimally Invasive Surgery",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 600,
+    "Follow-up Fee SAR": 400,
+    "Bio (EN)": "Dr. Al-Mutairi specializes in laparoscopic gallbladder, hernia, and appendix surgery. 21 years of surgical experience.",
+    "Bio (AR)": "د. المطيري متخصص في جراحة المرارة والفتق والزائدة بالمنظار. 21 عاماً من الخبرة الجراحية.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-017",
+    "Full Name (EN)": "Dr. Hala Al-Ghamdi",
+    "Full Name (AR)": "د. هلا الغامدي",
+    "Specialty (EN)": "Ophthalmology",
+    "Specialty (AR)": "طب العيون",
+    "Sub-specialty (EN)": "General Ophthalmology & Cataract Surgery",
+    "Sub-specialty (AR)": "طب عيون عام وجراحة المياه البيضاء",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 14,
+    "Qualifications": "MD, FRCOphth (UK)",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Ghamdi treats cataracts, refractive errors, glaucoma, and provides routine eye exams.",
+    "Bio (AR)": "د. الغامدي تعالج المياه البيضاء وأخطاء الانكسار والزرق وتقدم فحوصات العيون الروتينية.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-018",
+    "Full Name (EN)": "Dr. Abdullah Al-Yami",
+    "Full Name (AR)": "د. عبدالله اليامي",
+    "Specialty (EN)": "Pulmonology",
+    "Specialty (AR)": "أمراض الجهاز التنفسي",
+    "Sub-specialty (EN)": "Asthma & Respiratory Medicine",
+    "Sub-specialty (AR)": "الربو والطب التنفسي",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 16,
+    "Qualifications": "MD, MRCP (UK), Fellowship in Pulmonary Medicine",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 500,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Yami treats asthma, COPD, sleep apnea, and respiratory infections.",
+    "Bio (AR)": "د. اليامي يعالج الربو ومرض الانسداد الرئوي المزمن وانقطاع التنفس أثناء النوم والالتهابات التنفسية.",
+    "Status": "Available"
+  }
+]

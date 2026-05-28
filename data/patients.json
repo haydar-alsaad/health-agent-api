@@ -1,0 +1,398 @@
+[
+  {
+    "Patient ID": "PAT-002",
+    "Full Name (EN)": "Omar Al-Salem",
+    "Full Name (AR)": "عمر السالم",
+    "Date of Birth": "1968-04-15",
+    "Age": 58,
+    "Gender": "Male",
+    "Phone": "+966501234602",
+    "Email": "omar.alsalem@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Olaya District, Riyadh",
+    "Address (AR)": "حي العليا، الرياض",
+    "Insurance Provider ID": "INS-001-VIP",
+    "Insurance Policy Number": "TWN-VIP-44215",
+    "Primary Care Doctor ID": "DR-001",
+    "Allergies": [],
+    "Active Conditions (EN)": [
+      "Coronary Artery Disease",
+      "Post-angioplasty (3 months)",
+      "Hyperlipidemia"
+    ],
+    "Active Conditions (AR)": [
+      "مرض الشريان التاجي",
+      "بعد توسيع الشرايين (3 أشهر)",
+      "ارتفاع الدهون في الدم"
+    ],
+    "Emergency Contact Name": "Layla Al-Salem (wife)",
+    "Emergency Contact Phone": "+966505551001",
+    "Patient Status": "Active",
+    "Registered Since": "2018-03-12",
+    "Demo Notes": "Anchor demo persona for Nebelus Demo 4. Lipid panel released, follow-up booked, outstanding invoice INV-H003."
+  },
+  {
+    "Patient ID": "PAT-001",
+    "Full Name (EN)": "Mohammed Al-Shammari",
+    "Full Name (AR)": "محمد الشمري",
+    "Date of Birth": "1990-07-22",
+    "Age": 35,
+    "Gender": "Male",
+    "Phone": "+966501234601",
+    "Email": "m.alshammari@example.com",
+    "Preferred Language": "English",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Sahafa District, Riyadh",
+    "Address (AR)": "حي الصحافة، الرياض",
+    "Insurance Provider ID": "INS-002-STANDARD",
+    "Insurance Policy Number": "BUP-STD-19283",
+    "Primary Care Doctor ID": "DR-005",
+    "Allergies": [],
+    "Active Conditions (EN)": [],
+    "Active Conditions (AR)": [],
+    "Emergency Contact Name": "Sara Al-Shammari (sister)",
+    "Emergency Contact Phone": "+966505551101",
+    "Patient Status": "Active",
+    "Registered Since": "2022-09-05",
+    "Demo Notes": "Healthy young adult. Use for: 'I want to book a regular check-up' or 'first time visiting'."
+  },
+  {
+    "Patient ID": "PAT-003",
+    "Full Name (EN)": "Nora Al-Faisal",
+    "Full Name (AR)": "نورة الفيصل",
+    "Date of Birth": "1988-11-03",
+    "Age": 37,
+    "Gender": "Female",
+    "Phone": "+966501234603",
+    "Email": "nora.alfaisal@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Malqa District, Riyadh",
+    "Address (AR)": "حي الملقا، الرياض",
+    "Insurance Provider ID": "INS-002-PREMIUM",
+    "Insurance Policy Number": "BUP-PRM-67890",
+    "Primary Care Doctor ID": "DR-004",
+    "Allergies": [
+      "Sulfa drugs"
+    ],
+    "Active Conditions (EN)": [
+      "Type 2 Diabetes",
+      "Mild Hypertension"
+    ],
+    "Active Conditions (AR)": [
+      "السكري من النوع الثاني",
+      "ارتفاع ضغط الدم الخفيف"
+    ],
+    "Emergency Contact Name": "Faisal Al-Faisal (husband)",
+    "Emergency Contact Phone": "+966505551301",
+    "Patient Status": "Active",
+    "Registered Since": "2020-02-18",
+    "Demo Notes": "Diabetic with regular HbA1c monitoring. Use for: refilling Metformin, lab result discussion, 'how is my A1c trending'."
+  },
+  {
+    "Patient ID": "PAT-004",
+    "Full Name (EN)": "Sara Al-Dossary",
+    "Full Name (AR)": "سارة الدوسري",
+    "Date of Birth": "1995-03-28",
+    "Age": 30,
+    "Gender": "Female",
+    "Phone": "+966501234604",
+    "Email": "sara.aldossary@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Jeddah",
+    "City (AR)": "جدة",
+    "Address (EN)": "Al-Hamra District, Jeddah",
+    "Address (AR)": "حي الحمراء، جدة",
+    "Insurance Provider ID": "INS-002-PREMIUM",
+    "Insurance Policy Number": "BUP-PRM-12345",
+    "Primary Care Doctor ID": "DR-010",
+    "Allergies": [],
+    "Active Conditions (EN)": [
+      "Pregnancy (32 weeks)",
+      "Gestational Hypertension - Mild"
+    ],
+    "Active Conditions (AR)": [
+      "حمل (32 أسبوعاً)",
+      "ارتفاع ضغط دم خفيف بسبب الحمل"
+    ],
+    "Emergency Contact Name": "Khalid Al-Dossary (husband)",
+    "Emergency Contact Phone": "+966505551401",
+    "Patient Status": "Active",
+    "Registered Since": "2024-09-10",
+    "Demo Notes": "32-week pregnant. Use for: prenatal visit booking, 'when is my next OB appointment', folic acid refill."
+  },
+  {
+    "Patient ID": "PAT-005",
+    "Full Name (EN)": "Yousef Al-Harbi",
+    "Full Name (AR)": "يوسف الحربي",
+    "Date of Birth": "2020-08-14",
+    "Age": 5,
+    "Gender": "Male",
+    "Phone": "+966505551501",
+    "Email": "parent.alharbi@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Jeddah",
+    "City (AR)": "جدة",
+    "Address (EN)": "Al-Rawdah District, Jeddah",
+    "Address (AR)": "حي الروضة، جدة",
+    "Insurance Provider ID": "INS-004-EMPLOYER",
+    "Insurance Policy Number": "ARJ-EMP-98765",
+    "Primary Care Doctor ID": "DR-008",
+    "Allergies": [
+      "Peanuts"
+    ],
+    "Active Conditions (EN)": [
+      "Mild Asthma"
+    ],
+    "Active Conditions (AR)": [
+      "ربو خفيف"
+    ],
+    "Emergency Contact Name": "Abdulrahman Al-Harbi (father)",
+    "Emergency Contact Phone": "+966505551501",
+    "Parent/Guardian": "Abdulrahman Al-Harbi",
+    "Patient Status": "Active",
+    "Registered Since": "2020-09-01",
+    "Demo Notes": "Pediatric patient. Use for: 'book vaccination for my son', 'pediatric appointment', asthma inhaler refill."
+  },
+  {
+    "Patient ID": "PAT-006",
+    "Full Name (EN)": "Khalid Al-Mansour",
+    "Full Name (AR)": "خالد المنصور",
+    "Date of Birth": "1975-06-12",
+    "Age": 50,
+    "Gender": "Male",
+    "Phone": "+966501234606",
+    "Email": "k.almansour@example.com",
+    "Preferred Language": "English",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Yasmeen District, Riyadh",
+    "Address (AR)": "حي الياسمين، الرياض",
+    "Insurance Provider ID": "INS-001-STANDARD",
+    "Insurance Policy Number": "TWN-STD-55432",
+    "Primary Care Doctor ID": "DR-016",
+    "Allergies": [
+      "Latex"
+    ],
+    "Active Conditions (EN)": [
+      "Post-laparoscopic cholecystectomy (3 weeks)",
+      "Mild GERD"
+    ],
+    "Active Conditions (AR)": [
+      "بعد استئصال المرارة بالمنظار (3 أسابيع)",
+      "ارتجاع معدي مريئي خفيف"
+    ],
+    "Emergency Contact Name": "Reem Al-Mansour (wife)",
+    "Emergency Contact Phone": "+966505551601",
+    "Patient Status": "Active",
+    "Registered Since": "2021-06-25",
+    "Demo Notes": "Post-op recovery. Use for: 'when is my surgery follow-up', wound care questions, sick leave certificate."
+  },
+  {
+    "Patient ID": "PAT-007",
+    "Full Name (EN)": "Abdullah Al-Qahtani",
+    "Full Name (AR)": "عبدالله القحطاني",
+    "Date of Birth": "1948-12-30",
+    "Age": 77,
+    "Gender": "Male",
+    "Phone": "+966501234607",
+    "Email": "a.alqahtani@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Naseem District, Riyadh",
+    "Address (AR)": "حي النسيم، الرياض",
+    "Insurance Provider ID": "INS-001-STANDARD",
+    "Insurance Policy Number": "TWN-STD-77899",
+    "Primary Care Doctor ID": "DR-007",
+    "Allergies": [
+      "Penicillin"
+    ],
+    "Active Conditions (EN)": [
+      "Hypertension",
+      "Type 2 Diabetes",
+      "Osteoarthritis",
+      "Mild Cognitive Impairment"
+    ],
+    "Active Conditions (AR)": [
+      "ارتفاع ضغط الدم",
+      "السكري من النوع الثاني",
+      "خشونة المفاصل",
+      "ضعف إدراكي خفيف"
+    ],
+    "Emergency Contact Name": "Salem Al-Qahtani (son)",
+    "Emergency Contact Phone": "+966505551701",
+    "Patient Status": "Active",
+    "Registered Since": "2015-04-22",
+    "Demo Notes": "Elderly multi-condition patient. Use for: medication review, multiple specialist appointments, son booking on father's behalf."
+  },
+  {
+    "Patient ID": "PAT-008",
+    "Full Name (EN)": "Faisal Al-Otaibi",
+    "Full Name (AR)": "فيصل العتيبي",
+    "Date of Birth": "1982-09-17",
+    "Age": 43,
+    "Gender": "Male",
+    "Phone": "+966501234608",
+    "Email": "f.alotaibi@example.com",
+    "Preferred Language": "English",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Wadi District, Riyadh",
+    "Address (AR)": "حي الوادي، الرياض",
+    "Insurance Provider ID": "INS-003-STANDARD",
+    "Insurance Policy Number": "MGF-STD-33445",
+    "Primary Care Doctor ID": "DR-005",
+    "Allergies": [],
+    "Active Conditions (EN)": [
+      "Recent kidney stone (resolved)",
+      "Mild dehydration recovery"
+    ],
+    "Active Conditions (AR)": [
+      "حصى كلى حديثة (تم العلاج)",
+      "تعافي من جفاف خفيف"
+    ],
+    "Emergency Contact Name": "Hessah Al-Otaibi (wife)",
+    "Emergency Contact Phone": "+966505551801",
+    "Patient Status": "Active",
+    "Registered Since": "2019-11-08",
+    "Demo Notes": "Recent ER visit (kidney stone). Use for: 'what was my recent ER diagnosis', follow-up booking, urology referral."
+  },
+  {
+    "Patient ID": "PAT-009",
+    "Full Name (EN)": "Dalia Al-Rashid",
+    "Full Name (AR)": "داليا الراشد",
+    "Date of Birth": "1992-02-25",
+    "Age": 33,
+    "Gender": "Female",
+    "Phone": "+966501234609",
+    "Email": "d.alrashid@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Murabba District, Riyadh",
+    "Address (AR)": "حي المربع، الرياض",
+    "Insurance Provider ID": "INS-002-STANDARD",
+    "Insurance Policy Number": "BUP-STD-44556",
+    "Primary Care Doctor ID": "DR-013",
+    "Allergies": [],
+    "Active Conditions (EN)": [
+      "Generalized Anxiety Disorder",
+      "Mild Depression"
+    ],
+    "Active Conditions (AR)": [
+      "اضطراب القلق العام",
+      "اكتئاب خفيف"
+    ],
+    "Emergency Contact Name": "Mona Al-Rashid (mother)",
+    "Emergency Contact Phone": "+966505551901",
+    "Patient Status": "Active",
+    "Registered Since": "2023-01-14",
+    "Demo Notes": "Mental health patient. Use for: discreet appointment booking, sertraline refill, sensitive handling demonstration."
+  },
+  {
+    "Patient ID": "PAT-010",
+    "Full Name (EN)": "Lujain Al-Khalil",
+    "Full Name (AR)": "لجين الخليل",
+    "Date of Birth": "1998-07-09",
+    "Age": 27,
+    "Gender": "Female",
+    "Phone": "+966501234610",
+    "Email": "l.alkhalil@example.com",
+    "Preferred Language": "English",
+    "City (EN)": "Jeddah",
+    "City (AR)": "جدة",
+    "Address (EN)": "Al-Andalus District, Jeddah",
+    "Address (AR)": "حي الأندلس، جدة",
+    "Insurance Provider ID": "INS-003-BASIC",
+    "Insurance Policy Number": "MGF-BSC-22100",
+    "Primary Care Doctor ID": "DR-011",
+    "Allergies": [
+      "Iodine"
+    ],
+    "Active Conditions (EN)": [
+      "Chronic Eczema",
+      "Mild Acne"
+    ],
+    "Active Conditions (AR)": [
+      "إكزيما مزمنة",
+      "حب شباب خفيف"
+    ],
+    "Emergency Contact Name": "Maha Al-Khalil (sister)",
+    "Emergency Contact Phone": "+966505552001",
+    "Patient Status": "Active",
+    "Registered Since": "2022-05-30",
+    "Demo Notes": "Dermatology patient. Use for: skin condition flare-up booking, topical prescription refills, dermatology consultations."
+  },
+  {
+    "Patient ID": "PAT-011",
+    "Full Name (EN)": "Ibrahim Al-Subaie",
+    "Full Name (AR)": "إبراهيم السبيعي",
+    "Date of Birth": "1985-04-04",
+    "Age": 40,
+    "Gender": "Male",
+    "Phone": "+966501234611",
+    "Email": "i.alsubaie@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Falah District, Riyadh",
+    "Address (AR)": "حي الفلاح، الرياض",
+    "Insurance Provider ID": "INS-003-BASIC",
+    "Insurance Policy Number": "MGF-BSC-12001",
+    "Primary Care Doctor ID": "DR-012",
+    "Allergies": [],
+    "Active Conditions (EN)": [
+      "Knee Osteoarthritis",
+      "Chronic Lower Back Pain"
+    ],
+    "Active Conditions (AR)": [
+      "خشونة الركبة",
+      "آلام أسفل الظهر المزمنة"
+    ],
+    "Emergency Contact Name": "Saud Al-Subaie (brother)",
+    "Emergency Contact Phone": "+966505552101",
+    "Patient Status": "Active",
+    "Registered Since": "2017-08-19",
+    "Demo Notes": "Has multiple outstanding invoices. Use for: 'how much do I owe', payment plan inquiry, multi-invoice scenario."
+  },
+  {
+    "Patient ID": "PAT-012",
+    "Full Name (EN)": "Fatima Al-Zamil",
+    "Full Name (AR)": "فاطمة الزامل",
+    "Date of Birth": "1978-12-19",
+    "Age": 47,
+    "Gender": "Female",
+    "Phone": "+966501234612",
+    "Email": "f.alzamil@example.com",
+    "Preferred Language": "Arabic",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Murabba District, Riyadh",
+    "Address (AR)": "حي المربع، الرياض",
+    "Insurance Provider ID": "INS-001-STANDARD",
+    "Insurance Policy Number": "TWN-STD-66001",
+    "Primary Care Doctor ID": "DR-018",
+    "Allergies": [
+      "Dust mites",
+      "Pollen"
+    ],
+    "Active Conditions (EN)": [
+      "Adult-onset Asthma",
+      "Allergic Rhinitis"
+    ],
+    "Active Conditions (AR)": [
+      "ربو لدى البالغين",
+      "التهاب الأنف التحسسي"
+    ],
+    "Emergency Contact Name": "Hamad Al-Zamil (husband)",
+    "Emergency Contact Phone": "+966505552201",
+    "Patient Status": "Active",
+    "Registered Since": "2019-03-12",
+    "Demo Notes": "Asthma patient. Use for: Ventolin refill, 'is my asthma acting up' triage demo."
+  }
+]

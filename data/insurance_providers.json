@@ -1,0 +1,209 @@
+[
+  {
+    "Provider ID": "INS-001-BASIC",
+    "Provider Name (EN)": "Tawuniya",
+    "Provider Name (AR)": "التعاونية",
+    "Plan Tier (EN)": "Basic",
+    "Plan Tier (AR)": "أساسي",
+    "Annual Premium Range SAR": "1,500-3,000",
+    "Annual Limit SAR": 100000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "70%",
+    "Lab Coverage": "80%",
+    "Imaging Coverage": "70%",
+    "Medication Coverage": "60%",
+    "Pre-Authorization Required For": [
+      "MRI",
+      "CT Scan",
+      "Surgery",
+      "Inpatient Admission"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "SAR 50 co-pay per specialist visit; SAR 25 per medication.",
+    "ER Coverage": "100% in network"
+  },
+  {
+    "Provider ID": "INS-001-STANDARD",
+    "Provider Name (EN)": "Tawuniya",
+    "Provider Name (AR)": "التعاونية",
+    "Plan Tier (EN)": "Standard",
+    "Plan Tier (AR)": "قياسي",
+    "Annual Premium Range SAR": "3,500-6,000",
+    "Annual Limit SAR": 250000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "85%",
+    "Lab Coverage": "90%",
+    "Imaging Coverage": "85%",
+    "Medication Coverage": "80%",
+    "Pre-Authorization Required For": [
+      "MRI",
+      "Surgery (non-emergency)",
+      "Inpatient Admission > 2 days"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-002",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "SAR 25 co-pay per specialist visit; SAR 10 per medication.",
+    "ER Coverage": "100% in network, 80% out of network"
+  },
+  {
+    "Provider ID": "INS-001-VIP",
+    "Provider Name (EN)": "Tawuniya",
+    "Provider Name (AR)": "التعاونية",
+    "Plan Tier (EN)": "VIP",
+    "Plan Tier (AR)": "كبار الشخصيات",
+    "Annual Premium Range SAR": "8,000-15,000",
+    "Annual Limit SAR": 1000000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "100%",
+    "Lab Coverage": "100%",
+    "Imaging Coverage": "100%",
+    "Medication Coverage": "100%",
+    "Pre-Authorization Required For": [
+      "Major Surgery",
+      "Inpatient Admission > 5 days"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-002",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "No co-pays. Includes private room, second medical opinion abroad.",
+    "ER Coverage": "100% worldwide"
+  },
+  {
+    "Provider ID": "INS-002-STANDARD",
+    "Provider Name (EN)": "Bupa Arabia",
+    "Provider Name (AR)": "بوبا العربية",
+    "Plan Tier (EN)": "Standard",
+    "Plan Tier (AR)": "قياسي",
+    "Annual Premium Range SAR": "3,000-5,500",
+    "Annual Limit SAR": 200000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "80%",
+    "Lab Coverage": "85%",
+    "Imaging Coverage": "80%",
+    "Medication Coverage": "75%",
+    "Pre-Authorization Required For": [
+      "MRI",
+      "CT Scan",
+      "Surgery",
+      "Specialist referral after 3 visits"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-002",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "SAR 30 co-pay per specialist visit.",
+    "ER Coverage": "100% in network"
+  },
+  {
+    "Provider ID": "INS-002-PREMIUM",
+    "Provider Name (EN)": "Bupa Arabia",
+    "Provider Name (AR)": "بوبا العربية",
+    "Plan Tier (EN)": "Premium",
+    "Plan Tier (AR)": "ممتاز",
+    "Annual Premium Range SAR": "6,000-12,000",
+    "Annual Limit SAR": 750000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "100%",
+    "Lab Coverage": "100%",
+    "Imaging Coverage": "95%",
+    "Medication Coverage": "95%",
+    "Pre-Authorization Required For": [
+      "Major Surgery"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-002",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "Minimal co-pays (SAR 10 max). Maternity included.",
+    "ER Coverage": "100% in network, 90% out of network"
+  },
+  {
+    "Provider ID": "INS-003-BASIC",
+    "Provider Name (EN)": "MedGulf",
+    "Provider Name (AR)": "ميد غلف",
+    "Plan Tier (EN)": "Basic",
+    "Plan Tier (AR)": "أساسي",
+    "Annual Premium Range SAR": "1,200-2,500",
+    "Annual Limit SAR": 75000,
+    "GP Consultation Coverage": "80%",
+    "Specialist Consultation Coverage": "60%",
+    "Lab Coverage": "70%",
+    "Imaging Coverage": "60%",
+    "Medication Coverage": "50%",
+    "Pre-Authorization Required For": [
+      "MRI",
+      "CT Scan",
+      "Surgery",
+      "Inpatient Admission",
+      "Specialist Referral"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "SAR 75 co-pay per specialist visit; SAR 30 per medication.",
+    "ER Coverage": "80% in network"
+  },
+  {
+    "Provider ID": "INS-003-STANDARD",
+    "Provider Name (EN)": "MedGulf",
+    "Provider Name (AR)": "ميد غلف",
+    "Plan Tier (EN)": "Standard",
+    "Plan Tier (AR)": "قياسي",
+    "Annual Premium Range SAR": "2,800-4,500",
+    "Annual Limit SAR": 150000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "80%",
+    "Lab Coverage": "85%",
+    "Imaging Coverage": "80%",
+    "Medication Coverage": "70%",
+    "Pre-Authorization Required For": [
+      "MRI",
+      "Surgery (non-emergency)"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-002",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "SAR 40 co-pay per specialist visit.",
+    "ER Coverage": "100% in network"
+  },
+  {
+    "Provider ID": "INS-004-EMPLOYER",
+    "Provider Name (EN)": "AlRajhi Takaful — Employer Plan",
+    "Provider Name (AR)": "الراجحي تكافل — تأمين أصحاب العمل",
+    "Plan Tier (EN)": "Employer Standard",
+    "Plan Tier (AR)": "أصحاب العمل القياسي",
+    "Annual Premium Range SAR": "Paid by employer",
+    "Annual Limit SAR": 200000,
+    "GP Consultation Coverage": "100%",
+    "Specialist Consultation Coverage": "85%",
+    "Lab Coverage": "90%",
+    "Imaging Coverage": "85%",
+    "Medication Coverage": "80%",
+    "Pre-Authorization Required For": [
+      "MRI",
+      "CT Scan",
+      "Surgery (non-emergency)",
+      "Inpatient > 2 days"
+    ],
+    "Network Hospitals": [
+      "CLN-001",
+      "CLN-002",
+      "CLN-003"
+    ],
+    "Co-pay Notes": "SAR 25 co-pay per specialist visit. Dependents covered.",
+    "ER Coverage": "100% in network"
+  }
+]

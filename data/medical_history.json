@@ -1,0 +1,212 @@
+[
+  {
+    "History ID": "MH-001",
+    "Patient ID": "PAT-002",
+    "Event Date": "2026-01-28",
+    "Event Type": "Procedure",
+    "Description (EN)": "Coronary Angioplasty + Stent (LAD)",
+    "Description (AR)": "توسيع الشريان التاجي + دعامة (LAD)",
+    "Doctor ID": "DR-001",
+    "Linked Appointment ID": "APT-H001"
+  },
+  {
+    "History ID": "MH-002",
+    "Patient ID": "PAT-002",
+    "Event Date": "2026-01-25",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Coronary Artery Disease - 70% LAD stenosis",
+    "Description (AR)": "مرض الشريان التاجي - تضيق LAD بنسبة 70%",
+    "Doctor ID": "DR-001",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-003",
+    "Patient ID": "PAT-002",
+    "Event Date": "2024-06-12",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Hyperlipidemia diagnosed",
+    "Description (AR)": "تشخيص ارتفاع الدهون في الدم",
+    "Doctor ID": "DR-001",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-010",
+    "Patient ID": "PAT-003",
+    "Event Date": "2024-08-15",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Type 2 Diabetes diagnosed",
+    "Description (AR)": "تشخيص السكري من النوع الثاني",
+    "Doctor ID": "DR-004",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-011",
+    "Patient ID": "PAT-003",
+    "Event Date": "2025-03-22",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Mild Hypertension diagnosed",
+    "Description (AR)": "تشخيص ارتفاع ضغط الدم الخفيف",
+    "Doctor ID": "DR-004",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-012",
+    "Patient ID": "PAT-003",
+    "Event Date": "2023-11-08",
+    "Event Type": "Allergy Note",
+    "Description (EN)": "Sulfa drug allergy - moderate rash",
+    "Description (AR)": "حساسية من أدوية السلفا - طفح متوسط",
+    "Doctor ID": "DR-005",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-020",
+    "Patient ID": "PAT-004",
+    "Event Date": "2024-09-10",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Pregnancy confirmed (G1P0)",
+    "Description (AR)": "تأكيد الحمل (الأول)",
+    "Doctor ID": "DR-010",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-030",
+    "Patient ID": "PAT-005",
+    "Event Date": "2023-04-18",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Mild persistent asthma",
+    "Description (AR)": "ربو خفيف مستمر",
+    "Doctor ID": "DR-008",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-031",
+    "Patient ID": "PAT-005",
+    "Event Date": "2025-08-20",
+    "Event Type": "Vaccination",
+    "Description (EN)": "MMR booster",
+    "Description (AR)": "جرعة معززة MMR",
+    "Doctor ID": "DR-008",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-032",
+    "Patient ID": "PAT-005",
+    "Event Date": "2024-11-10",
+    "Event Type": "Allergy Note",
+    "Description (EN)": "Peanut allergy - severe",
+    "Description (AR)": "حساسية شديدة من الفول السوداني",
+    "Doctor ID": "DR-008",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-040",
+    "Patient ID": "PAT-006",
+    "Event Date": "2026-04-08",
+    "Event Type": "Surgery",
+    "Description (EN)": "Laparoscopic Cholecystectomy",
+    "Description (AR)": "استئصال المرارة بالمنظار",
+    "Doctor ID": "DR-016",
+    "Linked Appointment ID": "APT-H050"
+  },
+  {
+    "History ID": "MH-041",
+    "Patient ID": "PAT-006",
+    "Event Date": "2026-03-12",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Symptomatic cholelithiasis (gallstones)",
+    "Description (AR)": "حصى المرارة العرضية",
+    "Doctor ID": "DR-016",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-042",
+    "Patient ID": "PAT-006",
+    "Event Date": "2022-05-04",
+    "Event Type": "Allergy Note",
+    "Description (EN)": "Latex allergy - skin reaction",
+    "Description (AR)": "حساسية من اللاتكس - تفاعل جلدي",
+    "Doctor ID": null,
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-050",
+    "Patient ID": "PAT-007",
+    "Event Date": "2018-07-22",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Hypertension diagnosed",
+    "Description (AR)": "تشخيص ارتفاع ضغط الدم",
+    "Doctor ID": "DR-007",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-051",
+    "Patient ID": "PAT-007",
+    "Event Date": "2020-02-15",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Type 2 Diabetes diagnosed",
+    "Description (AR)": "تشخيص السكري من النوع الثاني",
+    "Doctor ID": "DR-007",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-052",
+    "Patient ID": "PAT-007",
+    "Event Date": "2023-10-30",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Bilateral knee osteoarthritis",
+    "Description (AR)": "خشونة مفاصل الركبتين الثنائية",
+    "Doctor ID": "DR-012",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-053",
+    "Patient ID": "PAT-007",
+    "Event Date": "2019-06-15",
+    "Event Type": "Allergy Note",
+    "Description (EN)": "Penicillin allergy - rash",
+    "Description (AR)": "حساسية من البنسلين - طفح",
+    "Doctor ID": "DR-005",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-060",
+    "Patient ID": "PAT-008",
+    "Event Date": "2026-04-13",
+    "Event Type": "Hospitalization",
+    "Description (EN)": "ER visit - kidney stone, conservative management, stone passed",
+    "Description (AR)": "زيارة طوارئ - حصى كلى، علاج تحفظي، خرجت الحصى",
+    "Doctor ID": null,
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-070",
+    "Patient ID": "PAT-009",
+    "Event Date": "2023-01-14",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Generalized Anxiety Disorder",
+    "Description (AR)": "اضطراب القلق العام",
+    "Doctor ID": "DR-013",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-080",
+    "Patient ID": "PAT-011",
+    "Event Date": "2022-10-20",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Knee osteoarthritis (right)",
+    "Description (AR)": "خشونة مفصل الركبة (الأيمن)",
+    "Doctor ID": "DR-012",
+    "Linked Appointment ID": null
+  },
+  {
+    "History ID": "MH-081",
+    "Patient ID": "PAT-011",
+    "Event Date": "2024-08-15",
+    "Event Type": "Diagnosis",
+    "Description (EN)": "Chronic lower back pain",
+    "Description (AR)": "آلام أسفل الظهر المزمنة",
+    "Doctor ID": "DR-012",
+    "Linked Appointment ID": null
+  }
+]
