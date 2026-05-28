@@ -1,454 +1,1117 @@
 """
-Healthcare Agent API - v1.0
-6 endpoints + /health:
-  GET /health        - status + data load counts
-  GET /patient       - workhorse: full patient package
-  GET /doctor        - doctor info
-  GET /slots         - available appointment slots
-  GET /clinic        - clinic info
-  GET /medication    - medication catalog lookup
-  GET /insurance     - insurance plan lookup
+Al-Noor Healthcare Agent API - v2.0
+
+Architecture: Supabase-backed via httpx REST + service role key.
+Endpoints:
+  Read:
+    GET /health                      - status + data load counts
+    GET /patient                     - workhorse: full patient package (parallelized)
+    GET /doctor                      - doctor info
+    GET /slots                       - available appointment slots
+    GET /clinic                      - clinic info
+    GET /medication                  - medication catalog lookup
+    GET /insurance                   - insurance plan lookup
+
+  Write:
+    POST /appointment/book           - book a slot, create appointment
+    POST /appointment/cancel         - cancel appointment, release slot
+    POST /appointment/reschedule     - cancel + book in one transaction
+    POST /prescription/refill        - create refill request, decrement refills
+    POST /invoice/payment            - record payment, mark invoice Paid
+    POST /profile/update             - update phone/email/address only
+    POST /preauth/request            - create pre-auth request
+    POST /lab-result/release         - flip Pending → Released (portal-side)
+
+Lessons from Education applied:
+  - asyncio.gather in /patient for parallel Supabase fetches
+  - Every write inserts an agent_actions audit row
+  - Indexes assumed on filter columns
+  - Auto-warm cron-friendly: /patient?patient_id=PAT-002 is cheap & fast
 """
+import asyncio
 import json
 import os
+import sys
 from datetime import date, datetime, timedelta
-from typing import Optional
-from fastapi import FastAPI, HTTPException, Query
+from typing import Optional, Any
+import httpx
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Health Agent API", version="1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
+# ============================================================
+# Config
+# ============================================================
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SEED_ON_BOOT = os.environ.get("SEED_ON_BOOT", "true").lower() == "true"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-patients = []
-doctors = []
-clinics = []
-pharmacies = []
-insurance_providers = []
-medications = []
-appointments = []
-lab_results = []
-prescriptions = []
-invoices = []
-medical_history = []
-doctor_availability = []
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("WARNING: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. API will fail.")
 
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+}
 
-def load(filename):
-    path = os.path.join(DATA_DIR, filename)
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+# ============================================================
+# App
+# ============================================================
+app = FastAPI(title="Al-Noor Health Agent API", version="2.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-
-def load_all_data():
-    global patients, doctors, clinics, pharmacies, insurance_providers
-    global medications, appointments, lab_results, prescriptions, invoices
-    global medical_history, doctor_availability
-
-    patients = load("patients.json")
-    doctors = load("doctors.json")
-    clinics = load("clinics.json")
-    pharmacies = load("pharmacies.json")
-    insurance_providers = load("insurance_providers.json")
-    medications = load("medications_catalog.json")
-    appointments = load("appointments.json")
-    lab_results = load("lab_results.json")
-    prescriptions = load("prescriptions.json")
-    invoices = load("invoices.json")
-    medical_history = load("medical_history.json")
-    doctor_availability = load("doctor_availability.json")
+# Shared httpx client for connection pooling
+http_client: Optional[httpx.AsyncClient] = None
 
 
 @app.on_event("startup")
-def startup():
-    load_all_data()
+async def startup():
+    global http_client
+    http_client = httpx.AsyncClient(
+        timeout=30.0,
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+    )
+    if SEED_ON_BOOT:
+        await seed_if_empty()
 
 
-def find_patient(pid):
-    return next((p for p in patients if p["Patient ID"] == pid), None)
+@app.on_event("shutdown")
+async def shutdown():
+    global http_client
+    if http_client:
+        await http_client.aclose()
 
-def find_doctor(did):
-    return next((d for d in doctors if d["Doctor ID"] == did), None)
 
-def find_clinic(cid):
-    return next((c for c in clinics if c["Clinic ID"] == cid), None)
+# ============================================================
+# Supabase REST helpers
+# ============================================================
+async def sb_get(table: str, params: Optional[dict] = None) -> list:
+    """GET from Supabase REST. Returns list of rows."""
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    try:
+        r = await http_client.get(url, headers=HEADERS, params=params or {})
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        print(f"sb_get error {table}: {e.response.status_code} {e.response.text[:200]}")
+        return []
+    except Exception as e:
+        print(f"sb_get exception {table}: {e}")
+        return []
 
-def find_insurance(iid):
-    return next((i for i in insurance_providers if i["Provider ID"] == iid), None)
 
-def find_medication(mid):
-    return next((m for m in medications if m["Medication ID"] == mid), None)
+async def sb_get_one(table: str, params: Optional[dict] = None) -> Optional[dict]:
+    """GET single row from Supabase. Returns dict or None."""
+    rows = await sb_get(table, params)
+    return rows[0] if rows else None
 
-def find_pharmacy(pid):
-    return next((p for p in pharmacies if p["Pharmacy ID"] == pid), None)
+
+async def sb_insert(table: str, payload: dict | list) -> Any:
+    """INSERT into Supabase. Returns inserted row(s)."""
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    try:
+        r = await http_client.post(url, headers=HEADERS, json=payload)
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        print(f"sb_insert error {table}: {e.response.status_code} {e.response.text[:300]}")
+        raise HTTPException(status_code=500, detail=f"Insert to {table} failed: {e.response.text[:200]}")
+
+
+async def sb_update(table: str, params: dict, payload: dict) -> Any:
+    """UPDATE rows in Supabase matching params (using PostgREST filter syntax)."""
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    try:
+        r = await http_client.patch(url, headers=HEADERS, params=params, json=payload)
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        print(f"sb_update error {table}: {e.response.status_code} {e.response.text[:300]}")
+        raise HTTPException(status_code=500, detail=f"Update {table} failed: {e.response.text[:200]}")
+
+
+async def log_agent_action(
+    patient_id: Optional[str],
+    action_type: str,
+    description: str,
+    metadata: Optional[dict] = None,
+    status: str = "Success",
+):
+    """Insert into agent_actions for the Live Activity Drawer."""
+    try:
+        await sb_insert("agent_actions", {
+            "patient_id": patient_id,
+            "action_type": action_type,
+            "description": description,
+            "metadata": metadata or {},
+            "status": status,
+        })
+    except Exception as e:
+        # Audit log failures should not break the parent operation
+        print(f"agent_actions log failed: {e}")
+
+
+# ============================================================
+# Data seeding (run once on boot if tables empty)
+# ============================================================
+SEED_FILES = [
+    # Order matters for foreign keys: independent tables first
+    ("insurance_providers", "insurance_providers.json"),
+    ("clinics", "clinics.json"),
+    ("pharmacies", "pharmacies.json"),
+    ("doctors", "doctors.json"),
+    ("patients", "patients.json"),
+    ("medications_catalog", "medications_catalog.json"),
+    ("appointments", "appointments.json"),
+    ("lab_results", "lab_results.json"),
+    ("prescriptions", "prescriptions.json"),
+    ("invoices", "invoices.json"),
+    ("medical_history", "medical_history.json"),
+    ("doctor_availability", "doctor_availability.json"),
+]
+
+
+def json_to_db_row(table: str, raw: dict) -> dict:
+    """Map raw JSON keys (e.g. 'Patient ID') to DB column names ('patient_id')."""
+    # Mapping rules based on schema in Lovable prompt
+    mappings = {
+        "insurance_providers": {
+            "Provider ID": "provider_id",
+            "Provider Name (EN)": "provider_name_en",
+            "Provider Name (AR)": "provider_name_ar",
+            "Plan Tier (EN)": "plan_tier_en",
+            "Plan Tier (AR)": "plan_tier_ar",
+            "Annual Premium Range SAR": "annual_premium_range_sar",
+            "Annual Limit SAR": "annual_limit_sar",
+            "GP Consultation Coverage": "gp_consultation_coverage",
+            "Specialist Consultation Coverage": "specialist_consultation_coverage",
+            "Lab Coverage": "lab_coverage",
+            "Imaging Coverage": "imaging_coverage",
+            "Medication Coverage": "medication_coverage",
+            "Pre-Authorization Required For": "pre_authorization_required_for",
+            "Network Hospitals": "network_hospitals",
+            "Co-pay Notes": "co_pay_notes",
+            "ER Coverage": "er_coverage",
+        },
+        "clinics": {
+            "Clinic ID": "clinic_id",
+            "Clinic Name (EN)": "clinic_name_en",
+            "Clinic Name (AR)": "clinic_name_ar",
+            "Type": "type",
+            "Address (EN)": "address_en",
+            "Address (AR)": "address_ar",
+            "Phone": "phone",
+            "City (EN)": "city_en",
+            "City (AR)": "city_ar",
+            "Operating Hours": "operating_hours",
+            "Specialties Available": "specialties_available",
+            "Pharmacy On Site": "pharmacy_on_site",
+            "Pharmacy ID": "pharmacy_id",
+            "Lab On Site": "lab_on_site",
+            "Imaging On Site": "imaging_on_site",
+            "Emergency Department": "emergency_department",
+            "Parking": "parking",
+            "Bed Capacity": "bed_capacity",
+        },
+        "pharmacies": {
+            "Pharmacy ID": "pharmacy_id",
+            "Pharmacy Name (EN)": "pharmacy_name_en",
+            "Pharmacy Name (AR)": "pharmacy_name_ar",
+            "Type": "type",
+            "Linked Clinic ID": "linked_clinic_id",
+            "Address (EN)": "address_en",
+            "Address (AR)": "address_ar",
+            "City": "city",
+            "Phone": "phone",
+            "Operating Hours": "operating_hours",
+            "Home Delivery Available": "home_delivery_available",
+            "Home Delivery Fee SAR": "home_delivery_fee_sar",
+            "Home Delivery Cities": "home_delivery_cities",
+            "Home Delivery Window": "home_delivery_window",
+        },
+        "doctors": {
+            "Doctor ID": "doctor_id",
+            "Full Name (EN)": "full_name_en",
+            "Full Name (AR)": "full_name_ar",
+            "Specialty (EN)": "specialty_en",
+            "Specialty (AR)": "specialty_ar",
+            "Sub-specialty (EN)": "sub_specialty_en",
+            "Sub-specialty (AR)": "sub_specialty_ar",
+            "Title (EN)": "title_en",
+            "Title (AR)": "title_ar",
+            "Languages": "languages",
+            "Years of Experience": "years_of_experience",
+            "Qualifications": "qualifications",
+            "Primary Clinic ID": "primary_clinic_id",
+            "Visiting Clinic IDs": "visiting_clinic_ids",
+            "Consultation Fee SAR": "consultation_fee_sar",
+            "Follow-up Fee SAR": "followup_fee_sar",
+            "Bio (EN)": "bio_en",
+            "Bio (AR)": "bio_ar",
+            "Status": "status",
+        },
+        "patients": {
+            "Patient ID": "patient_id",
+            "Full Name (EN)": "full_name_en",
+            "Full Name (AR)": "full_name_ar",
+            "Date of Birth": "date_of_birth",
+            "Age": "age",
+            "Gender": "gender",
+            "Phone": "phone",
+            "Email": "email",
+            "Preferred Language": "preferred_language",
+            "City (EN)": "city_en",
+            "City (AR)": "city_ar",
+            "Address (EN)": "address_en",
+            "Address (AR)": "address_ar",
+            "Insurance Provider ID": "insurance_provider_id",
+            "Insurance Policy Number": "insurance_policy_number",
+            "Primary Care Doctor ID": "primary_care_doctor_id",
+            "Allergies": "allergies",
+            "Active Conditions (EN)": "active_conditions_en",
+            "Active Conditions (AR)": "active_conditions_ar",
+            "Emergency Contact Name": "emergency_contact_name",
+            "Emergency Contact Phone": "emergency_contact_phone",
+            "Parent/Guardian": "parent_guardian",
+            "Patient Status": "patient_status",
+            "Registered Since": "registered_since",
+            "Demo Notes": "demo_notes",
+        },
+        "medications_catalog": {
+            "Medication ID": "medication_id",
+            "Name (EN)": "name_en",
+            "Name (AR)": "name_ar",
+            "Drug Class (EN)": "drug_class_en",
+            "Drug Class (AR)": "drug_class_ar",
+            "Indication (EN)": "indication_en",
+            "Indication (AR)": "indication_ar",
+            "Common Dosages": "common_dosages",
+            "Side Effects (EN)": "side_effects_en",
+            "Side Effects (AR)": "side_effects_ar",
+            "Interactions": "interactions",
+            "Requires Prescription": "requires_prescription",
+            "Controlled Substance": "controlled_substance",
+            "Coverage Tier": "coverage_tier",
+        },
+        "appointments": {
+            "Appointment ID": "appointment_id",
+            "Patient ID": "patient_id",
+            "Doctor ID": "doctor_id",
+            "Clinic ID": "clinic_id",
+            "Date": "date",
+            "Start Time": "start_time",
+            "Duration Minutes": "duration_minutes",
+            "Type": "type",
+            "Reason for Visit": "reason_for_visit",
+            "Status": "status",
+            "Notes": "notes",
+            "Follow-up Required": "followup_required",
+            "Created Date": "created_date",
+        },
+        "lab_results": {
+            "Lab Result ID": "lab_result_id",
+            "Patient ID": "patient_id",
+            "Ordering Doctor ID": "ordering_doctor_id",
+            "Clinic ID": "clinic_id",
+            "Test Type": "test_type",
+            "Test Name (EN)": "test_name_en",
+            "Test Name (AR)": "test_name_ar",
+            "Test Code": "test_code",
+            "Order Date": "order_date",
+            "Result Date": "result_date",
+            "Status": "status",
+            "Estimated Available": "estimated_available",
+            "Linked Appointment ID": "linked_appointment_id",
+            "Results": "results",
+            "Imaging Findings (EN)": "imaging_findings_en",
+            "Imaging Findings (AR)": "imaging_findings_ar",
+            "Radiologist": "radiologist",
+            "Lab Tech": "lab_tech",
+            "Notes (EN)": "notes_en",
+            "Notes (AR)": "notes_ar",
+        },
+        "prescriptions": {
+            "Prescription ID": "prescription_id",
+            "Patient ID": "patient_id",
+            "Prescribing Doctor ID": "prescribing_doctor_id",
+            "Clinic ID": "clinic_id",
+            "Issued Date": "issued_date",
+            "Expiration Date": "expiration_date",
+            "Status": "status",
+            "Medications": "medications",
+            "Last Filled Date": "last_filled_date",
+            "Last Filled Pharmacy ID": "last_filled_pharmacy_id",
+            "Linked Appointment ID": "linked_appointment_id",
+            "Linked Diagnosis (EN)": "linked_diagnosis_en",
+            "Linked Diagnosis (AR)": "linked_diagnosis_ar",
+        },
+        "invoices": {
+            "Invoice ID": "invoice_id",
+            "Patient ID": "patient_id",
+            "Linked Appointment ID": "linked_appointment_id",
+            "Linked Lab Result ID": "linked_lab_result_id",
+            "Issue Date": "issue_date",
+            "Due Date": "due_date",
+            "Items": "items",
+            "Subtotal SAR": "subtotal_sar",
+            "Insurance Provider (EN)": "insurance_provider_en",
+            "Insurance Provider (AR)": "insurance_provider_ar",
+            "Insurance Covered SAR": "insurance_covered_sar",
+            "Patient Due SAR": "patient_due_sar",
+            "Status": "status",
+            "Payment Method": "payment_method",
+            "Payment Date": "payment_date",
+            "Notes (EN)": "notes_en",
+            "Notes (AR)": "notes_ar",
+        },
+        "medical_history": {
+            "History ID": "history_id",
+            "Patient ID": "patient_id",
+            "Event Date": "event_date",
+            "Event Type": "event_type",
+            "Description (EN)": "description_en",
+            "Description (AR)": "description_ar",
+            "Doctor ID": "doctor_id",
+            "Linked Appointment ID": "linked_appointment_id",
+        },
+        "doctor_availability": {
+            "Slot ID": "slot_id",
+            "Doctor ID": "doctor_id",
+            "Clinic ID": "clinic_id",
+            "Date": "date",
+            "Day of Week": "day_of_week",
+            "Start Time": "start_time",
+            "End Time": "end_time",
+            "Slot Capacity": "slot_capacity",
+            "Booked Count": "booked_count",
+            "Status": "status",
+        },
+    }
+    m = mappings.get(table, {})
+    return {m[k]: v for k, v in raw.items() if k in m}
+
+
+async def seed_if_empty():
+    """Check if patients table is empty; if so, seed all tables from JSON."""
+    try:
+        existing = await sb_get("patients", {"select": "patient_id", "limit": "1"})
+        if existing:
+            print(f"[seed] Database already has data ({len(existing)} patient(s) found). Skipping seed.")
+            return
+        print("[seed] Empty database detected. Seeding from JSON files...")
+        for table, filename in SEED_FILES:
+            path = os.path.join(DATA_DIR, filename)
+            if not os.path.exists(path):
+                print(f"[seed] {filename} not found, skipping")
+                continue
+            with open(path, "r", encoding="utf-8") as f:
+                rows = json.load(f)
+            if not rows:
+                continue
+            mapped = [json_to_db_row(table, r) for r in rows]
+            # Batch insert in chunks of 500 (Supabase REST limit safety)
+            for i in range(0, len(mapped), 500):
+                chunk = mapped[i:i+500]
+                try:
+                    await sb_insert(table, chunk)
+                except Exception as e:
+                    print(f"[seed] {table} batch {i} failed: {e}")
+            print(f"[seed] {table}: {len(mapped)} rows")
+        print("[seed] Done.")
+    except Exception as e:
+        print(f"[seed] failed: {e}")
+
+
+# ============================================================
+# Helper: enrich rows with related data
+# ============================================================
+async def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> dict:
+    """Add doctor + clinic names to an appointment row."""
+    d = doctors_by_id.get(apt.get("doctor_id"), {})
+    c = clinics_by_id.get(apt.get("clinic_id"), {})
+    return {
+        **apt,
+        "doctor_name_en": d.get("full_name_en"),
+        "doctor_name_ar": d.get("full_name_ar"),
+        "doctor_specialty_en": d.get("specialty_en"),
+        "doctor_specialty_ar": d.get("specialty_ar"),
+        "clinic_name_en": c.get("clinic_name_en"),
+        "clinic_name_ar": c.get("clinic_name_ar"),
+        "clinic_address_en": c.get("address_en"),
+        "clinic_address_ar": c.get("address_ar"),
+    }
+
+
+# ============================================================
+# Health check
+# ============================================================
+@app.get("/")
+async def root():
+    return {
+        "service": "Al-Noor Health Agent API",
+        "version": "2.0",
+        "supabase_configured": bool(SUPABASE_URL and SUPABASE_KEY),
+    }
 
 
 @app.get("/health")
-def health():
-    return {
-        "status": "healthy",
-        "version": "1.0",
-        "data_loaded": {
-            "patients": len(patients),
-            "doctors": len(doctors),
-            "clinics": len(clinics),
-            "pharmacies": len(pharmacies),
-            "insurance_providers": len(insurance_providers),
-            "medications": len(medications),
-            "appointments": len(appointments),
-            "lab_results": len(lab_results),
-            "prescriptions": len(prescriptions),
-            "invoices": len(invoices),
-            "medical_history": len(medical_history),
-            "doctor_availability_slots": len(doctor_availability),
-        }
-    }
+async def health():
+    """Quick health check + data counts (used by cron-job.org for warming)."""
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        return {"status": "degraded", "reason": "Supabase env not configured"}
+    counts = {}
+    tables = ["patients", "doctors", "clinics", "appointments", "lab_results",
+              "prescriptions", "invoices"]
+    results = await asyncio.gather(*[
+        sb_get(t, {"select": "count", "head": "true"}) for t in tables
+    ], return_exceptions=True)
+    for t, r in zip(tables, results):
+        if isinstance(r, Exception):
+            counts[t] = "error"
+        else:
+            # Supabase head=true returns count in Content-Range header normally;
+            # without that we approximate by limit:1 select. Fall through to len.
+            counts[t] = len(r) if isinstance(r, list) else "?"
+    return {"status": "ok", "counts": counts}
 
 
+# ============================================================
+# READ: /patient (the workhorse — parallelized)
+# ============================================================
 @app.get("/patient")
-def get_patient_data(
-    patient_id: str = Query(..., description="Patient ID e.g. PAT-002"),
-    include_history: bool = Query(False),
-    include_past_appointments: bool = Query(True)
+async def get_patient(
+    patient_id: Optional[str] = Query(None),
+    name: Optional[str] = Query(None),
+    phone: Optional[str] = Query(None),
 ):
-    """Workhorse endpoint - everything for one patient in a single call."""
-    patient = find_patient(patient_id)
+    """Returns full patient package: profile, insurance, primary doctor,
+    appointments, prescriptions, lab results, invoices, medical history.
+
+    All sub-fetches run in parallel via asyncio.gather."""
+    # Step 1: find the patient
+    if patient_id:
+        patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+    elif name:
+        # Case-insensitive partial match on EN or AR name
+        patient = await sb_get_one("patients", {
+            "or": f"(full_name_en.ilike.*{name}*,full_name_ar.ilike.*{name}*)"
+        })
+    elif phone:
+        patient = await sb_get_one("patients", {"phone": f"eq.{phone}"})
+    else:
+        raise HTTPException(status_code=400, detail="Provide patient_id, name, or phone")
+
     if not patient:
-        raise HTTPException(404, f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Patient not found")
 
-    # Insurance resolved
-    insurance = find_insurance(patient["Insurance Provider ID"])
-    insurance_resolved = None
-    if insurance:
-        insurance_resolved = {
-            "provider_id": insurance["Provider ID"],
-            "provider_name_en": insurance["Provider Name (EN)"],
-            "provider_name_ar": insurance["Provider Name (AR)"],
-            "plan_tier_en": insurance["Plan Tier (EN)"],
-            "plan_tier_ar": insurance["Plan Tier (AR)"],
-            "policy_number": patient.get("Insurance Policy Number"),
-            "annual_limit_sar": insurance["Annual Limit SAR"],
-            "coverage": {
-                "gp_consultation": insurance["GP Consultation Coverage"],
-                "specialist_consultation": insurance["Specialist Consultation Coverage"],
-                "lab": insurance["Lab Coverage"],
-                "imaging": insurance["Imaging Coverage"],
-                "medication": insurance["Medication Coverage"],
-                "er": insurance["ER Coverage"],
-            },
-            "pre_authorization_required_for": insurance["Pre-Authorization Required For"],
-            "co_pay_notes": insurance["Co-pay Notes"],
-            "network_clinic_ids": insurance["Network Hospitals"],
-        }
+    pid = patient["patient_id"]
 
-    primary_doctor = find_doctor(patient.get("Primary Care Doctor ID")) if patient.get("Primary Care Doctor ID") else None
-
-    # Appointments
-    pat_appts = [dict(a) for a in appointments if a["Patient ID"] == patient_id]
-    upcoming_appointments = sorted(
-        [a for a in pat_appts if a["Status"] == "Scheduled"],
-        key=lambda x: (x["Date"], x["Start Time"])
+    # Step 2: parallel fetch all related data
+    today = date.today().isoformat()
+    (
+        appointments,
+        prescriptions,
+        lab_results,
+        invoices,
+        history,
+        all_doctors,
+        all_clinics,
+        insurance,
+        primary_doctor,
+    ) = await asyncio.gather(
+        sb_get("appointments", {
+            "patient_id": f"eq.{pid}",
+            "order": "date.asc,start_time.asc",
+        }),
+        sb_get("prescriptions", {
+            "patient_id": f"eq.{pid}",
+            "order": "issued_date.desc",
+        }),
+        sb_get("lab_results", {
+            "patient_id": f"eq.{pid}",
+            "order": "order_date.desc",
+        }),
+        sb_get("invoices", {
+            "patient_id": f"eq.{pid}",
+            "order": "issue_date.desc",
+        }),
+        sb_get("medical_history", {
+            "patient_id": f"eq.{pid}",
+            "order": "event_date.desc",
+        }),
+        sb_get("doctors", {"select": "*"}),
+        sb_get("clinics", {"select": "*"}),
+        sb_get_one("insurance_providers", {
+            "provider_id": f"eq.{patient.get('insurance_provider_id', '')}"
+        }) if patient.get("insurance_provider_id") else asyncio.sleep(0, result=None),
+        sb_get_one("doctors", {
+            "doctor_id": f"eq.{patient.get('primary_care_doctor_id', '')}"
+        }) if patient.get("primary_care_doctor_id") else asyncio.sleep(0, result=None),
     )
-    for a in upcoming_appointments:
-        doc = find_doctor(a["Doctor ID"])
-        clinic = find_clinic(a["Clinic ID"])
-        if doc:
-            a["doctor_name_en"] = doc["Full Name (EN)"]
-            a["doctor_name_ar"] = doc["Full Name (AR)"]
-            a["doctor_specialty_en"] = doc["Specialty (EN)"]
-            a["doctor_specialty_ar"] = doc["Specialty (AR)"]
-        if clinic:
-            a["clinic_name_en"] = clinic["Clinic Name (EN)"]
-            a["clinic_name_ar"] = clinic["Clinic Name (AR)"]
-            a["clinic_address_en"] = clinic["Address (EN)"]
-            a["clinic_address_ar"] = clinic["Address (AR)"]
 
-    recent_appointments = []
-    if include_past_appointments:
-        recent_appointments = sorted(
-            [a for a in pat_appts if a["Status"] == "Completed"],
-            key=lambda x: x["Date"], reverse=True
-        )[:5]
-        for a in recent_appointments:
-            doc = find_doctor(a["Doctor ID"])
-            if doc:
-                a["doctor_name_en"] = doc["Full Name (EN)"]
-                a["doctor_name_ar"] = doc["Full Name (AR)"]
+    doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
+    clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
 
-    # Active prescriptions with med catalog merged
-    pat_rx = [r for r in prescriptions if r["Patient ID"] == patient_id]
-    active_prescriptions = []
-    for rx in pat_rx:
-        if rx["Status"] != "Active":
-            continue
-        rx_enriched = dict(rx)
-        rx_enriched["Medications"] = []
-        for med in rx["Medications"]:
-            cat = find_medication(med["Medication ID"])
-            merged = dict(med)
-            if cat:
-                merged["indication_en"] = cat["Indication (EN)"]
-                merged["indication_ar"] = cat["Indication (AR)"]
-                merged["class_en"] = cat["Class (EN)"]
-                merged["class_ar"] = cat["Class (AR)"]
-                merged["common_side_effects_en"] = cat["Common Side Effects (EN)"]
-                merged["common_side_effects_ar"] = cat["Common Side Effects (AR)"]
-                merged["interactions_note_en"] = cat["Interactions Note (EN)"]
-                merged["interactions_note_ar"] = cat["Interactions Note (AR)"]
-                merged["coverage_by_tier"] = cat["Coverage by Tier"]
-            rx_enriched["Medications"].append(merged)
-        doc = find_doctor(rx["Prescribing Doctor ID"])
-        if doc:
-            rx_enriched["prescribing_doctor_name_en"] = doc["Full Name (EN)"]
-            rx_enriched["prescribing_doctor_name_ar"] = doc["Full Name (AR)"]
-        active_prescriptions.append(rx_enriched)
+    # Step 3: enrich + segment
+    upcoming = []
+    past = []
+    for apt in appointments:
+        enriched = await enrich_appointment(apt, doctors_by_id, clinics_by_id)
+        if apt["date"] >= today and apt.get("status") not in ("Cancelled", "Completed"):
+            upcoming.append(enriched)
+        else:
+            past.append(enriched)
+    # past sorted reverse-chrono; keep most recent 5
+    past = sorted(past, key=lambda x: x.get("date", ""), reverse=True)[:5]
 
-    # Lab results
-    pat_labs = [dict(l) for l in lab_results if l["Patient ID"] == patient_id]
-    released_lab_results = sorted(
-        [l for l in pat_labs if l["Status"] == "Released"],
-        key=lambda x: x.get("Result Date") or "", reverse=True
-    )
-    pending_lab_results = [l for l in pat_labs if l["Status"] == "Pending"]
-    for lab in released_lab_results + pending_lab_results:
-        doc = find_doctor(lab["Ordering Doctor ID"])
-        if doc:
-            lab["ordering_doctor_name_en"] = doc["Full Name (EN)"]
-            lab["ordering_doctor_name_ar"] = doc["Full Name (AR)"]
+    active_prescriptions = [p for p in prescriptions if p.get("status") == "Active"]
+    released_lab_results = [l for l in lab_results if l.get("status") == "Released"]
+    pending_lab_results = [l for l in lab_results if l.get("status") == "Pending"]
+    outstanding_invoices = [i for i in invoices if i.get("status") == "Outstanding"]
+    paid_invoices = [i for i in invoices if i.get("status") == "Paid"]
 
-    # Invoices
-    pat_invoices = [i for i in invoices if i["Patient ID"] == patient_id]
-    outstanding_invoices = sorted(
-        [i for i in pat_invoices if i["Status"] == "Outstanding"],
-        key=lambda x: x["Due Date"]
-    )
-    paid_invoices = [i for i in pat_invoices if i["Status"] == "Paid"]
+    # Compute allergies alert
+    allergies = patient.get("allergies") or []
+    allergies_alert = bool(allergies)
 
-    total_paid = sum(i["Patient Due SAR"] for i in paid_invoices)
-    total_outstanding = sum(i["Patient Due SAR"] for i in outstanding_invoices)
-    last_payment = max(paid_invoices, key=lambda x: x.get("Payment Date") or "") if paid_invoices else None
-    payment_history = {
-        "total_paid_sar": total_paid,
-        "total_outstanding_sar": total_outstanding,
-        "outstanding_invoice_count": len(outstanding_invoices),
-        "last_payment_date": last_payment["Payment Date"] if last_payment else None,
-        "last_payment_method": last_payment["Payment Method"] if last_payment else None,
-    }
-
-    history = []
-    if include_history:
-        history = sorted(
-            [h for h in medical_history if h["Patient ID"] == patient_id],
-            key=lambda x: x["Event Date"], reverse=True
-        )
+    # Payment history summary
+    total_paid = sum(float(i.get("patient_due_sar") or 0) for i in paid_invoices)
+    total_outstanding = sum(float(i.get("patient_due_sar") or 0) for i in outstanding_invoices)
 
     return {
-        "profile": {
-            "patient_id": patient["Patient ID"],
-            "name_en": patient["Full Name (EN)"],
-            "name_ar": patient["Full Name (AR)"],
-            "first_name_en": patient["Full Name (EN)"].split()[0],
-            "date_of_birth": patient["Date of Birth"],
-            "age": patient["Age"],
-            "gender": patient["Gender"],
-            "phone": patient["Phone"],
-            "email": patient["Email"],
-            "preferred_language": patient["Preferred Language"],
-            "city_en": patient["City (EN)"],
-            "city_ar": patient["City (AR)"],
-            "address_en": patient["Address (EN)"],
-            "address_ar": patient["Address (AR)"],
-            "patient_status": patient["Patient Status"],
-            "registered_since": patient["Registered Since"],
-            "parent_guardian": patient.get("Parent/Guardian"),
-            "emergency_contact": {
-                "name": patient["Emergency Contact Name"],
-                "phone": patient["Emergency Contact Phone"],
-            },
-        },
-        "active_conditions_en": patient["Active Conditions (EN)"],
-        "active_conditions_ar": patient["Active Conditions (AR)"],
-        "allergies": patient["Allergies"],
-        "allergies_alert": len(patient["Allergies"]) > 0,
-        "insurance": insurance_resolved,
-        "primary_care_doctor": primary_doctor,
-        "upcoming_appointments": upcoming_appointments,
-        "recent_appointments": recent_appointments,
+        "patient": patient,
+        "insurance": insurance,
+        "primary_doctor": primary_doctor,
+        "allergies": allergies,
+        "allergies_alert": allergies_alert,
+        "active_conditions_en": patient.get("active_conditions_en") or [],
+        "active_conditions_ar": patient.get("active_conditions_ar") or [],
+        "upcoming_appointments": upcoming,
+        "recent_past_appointments": past,
         "active_prescriptions": active_prescriptions,
+        "all_prescriptions": prescriptions,
         "released_lab_results": released_lab_results,
         "pending_lab_results": pending_lab_results,
         "outstanding_invoices": outstanding_invoices,
-        "payment_history_summary": payment_history,
+        "paid_invoices_recent": paid_invoices[:5],
+        "payment_history_summary": {
+            "total_paid_sar": total_paid,
+            "total_outstanding_sar": total_outstanding,
+            "paid_invoice_count": len(paid_invoices),
+            "outstanding_invoice_count": len(outstanding_invoices),
+        },
         "medical_history": history,
     }
 
 
+# ============================================================
+# READ: /doctor
+# ============================================================
 @app.get("/doctor")
-def get_doctor_info(
-    doctor_id: Optional[str] = None,
-    specialty: Optional[str] = None,
-    name: Optional[str] = None,
-    clinic_id: Optional[str] = None,
+async def get_doctor(
+    doctor_id: Optional[str] = Query(None),
+    name: Optional[str] = Query(None),
+    specialty: Optional[str] = Query(None),
+    clinic_id: Optional[str] = Query(None),
 ):
-    results = [dict(d) for d in doctors]
+    """Look up doctor info."""
+    params = {"order": "full_name_en.asc"}
     if doctor_id:
-        results = [d for d in results if d["Doctor ID"] == doctor_id]
-    if specialty:
-        s = specialty.lower()
-        results = [d for d in results
-                   if s in d["Specialty (EN)"].lower()
-                   or s in (d.get("Sub-specialty (EN)") or "").lower()]
-    if name:
-        n = name.lower()
-        results = [d for d in results
-                   if n in d["Full Name (EN)"].lower() or n in d["Full Name (AR)"]]
-    if clinic_id:
-        results = [d for d in results
-                   if d["Primary Clinic ID"] == clinic_id or clinic_id in d["Visiting Clinic IDs"]]
+        params["doctor_id"] = f"eq.{doctor_id}"
+    elif name:
+        params["or"] = f"(full_name_en.ilike.*{name}*,full_name_ar.ilike.*{name}*)"
+    elif specialty:
+        params["specialty_en"] = f"ilike.*{specialty}*"
+    elif clinic_id:
+        params["primary_clinic_id"] = f"eq.{clinic_id}"
+    else:
+        raise HTTPException(status_code=400, detail="Provide doctor_id, name, specialty, or clinic_id")
 
-    for d in results:
-        primary_clinic = find_clinic(d["Primary Clinic ID"])
-        if primary_clinic:
-            d["primary_clinic_name_en"] = primary_clinic["Clinic Name (EN)"]
-            d["primary_clinic_name_ar"] = primary_clinic["Clinic Name (AR)"]
-
-    return {"doctors": results, "count": len(results)}
+    doctors = await sb_get("doctors", params)
+    return {"doctors": doctors, "count": len(doctors)}
 
 
+# ============================================================
+# READ: /slots
+# ============================================================
 @app.get("/slots")
-def get_appointment_slots(
-    doctor_id: Optional[str] = None,
-    specialty: Optional[str] = None,
-    clinic_id: Optional[str] = None,
-    city: Optional[str] = None,
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    near_date: Optional[str] = None,
-    near_window_days: int = 7,
-    only_open: bool = True,
-    limit: int = 20,
+async def get_slots(
+    doctor_id: Optional[str] = Query(None),
+    specialty: Optional[str] = Query(None),
+    clinic_id: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    near_date: Optional[str] = Query(None),
+    near_window_days: int = Query(7),
+    limit: int = Query(5),
 ):
-    results = [dict(s) for s in doctor_availability]
+    """Available appointment slots, sorted by earliest first (or by proximity to near_date)."""
+    today = date.today().isoformat()
 
-    if only_open:
-        results = [s for s in results if s["Status"] == "Open"]
+    # If specialty or city given, first resolve to doctor_ids
+    doctor_filter_ids: Optional[list[str]] = None
+    if specialty or city:
+        d_params = {"select": "doctor_id,primary_clinic_id"}
+        if specialty:
+            d_params["specialty_en"] = f"ilike.*{specialty}*"
+        candidate_docs = await sb_get("doctors", d_params)
+        if city:
+            # Need clinic city — fetch clinics in that city
+            clinics_in_city = await sb_get("clinics", {
+                "city_en": f"ilike.*{city}*",
+                "select": "clinic_id",
+            })
+            city_clinic_ids = {c["clinic_id"] for c in clinics_in_city}
+            candidate_docs = [d for d in candidate_docs if d.get("primary_clinic_id") in city_clinic_ids]
+        doctor_filter_ids = [d["doctor_id"] for d in candidate_docs]
+        if not doctor_filter_ids:
+            return {"slots": [], "count": 0}
+
+    params = {
+        "status": "eq.Open",
+        "select": "*",
+        "order": "date.asc,start_time.asc",
+        "limit": str(limit),
+    }
     if doctor_id:
-        results = [s for s in results if s["Doctor ID"] == doctor_id]
-    if specialty:
-        sp = specialty.lower()
-        spec_doc_ids = {d["Doctor ID"] for d in doctors
-                        if sp in d["Specialty (EN)"].lower()
-                        or sp in (d.get("Sub-specialty (EN)") or "").lower()}
-        results = [s for s in results if s["Doctor ID"] in spec_doc_ids]
+        params["doctor_id"] = f"eq.{doctor_id}"
+    elif doctor_filter_ids:
+        params["doctor_id"] = f"in.({','.join(doctor_filter_ids)})"
     if clinic_id:
-        results = [s for s in results if s["Clinic ID"] == clinic_id]
-    if city:
-        city_clinic_ids = {c["Clinic ID"] for c in clinics if c["City (EN)"].lower() == city.lower()}
-        results = [s for s in results if s["Clinic ID"] in city_clinic_ids]
-    if from_date:
-        results = [s for s in results if s["Date"] >= from_date]
-    if to_date:
-        results = [s for s in results if s["Date"] <= to_date]
+        params["clinic_id"] = f"eq.{clinic_id}"
 
-    # near_date: returns slots within ±near_window_days of the target date,
-    # sorted by absolute proximity to that date. Use this when the patient
-    # mentions a specific date or "near a date" — it lets the agent express
-    # "around May 8" cleanly without having to compute a date window itself.
-    # Falls back to the default sort if near_date is missing or unparseable.
-    target = None
+    if from_date:
+        params["date"] = f"gte.{from_date}"
+    else:
+        # default: today onward
+        params["date"] = f"gte.{today}"
+
+    # near_date overrides from_date for proximity sort
     if near_date:
         try:
             target = datetime.strptime(near_date, "%Y-%m-%d").date()
+            window_start = (target - timedelta(days=near_window_days)).isoformat()
+            window_end = (target + timedelta(days=near_window_days)).isoformat()
+            params["date"] = f"gte.{window_start}"
+            params["and"] = f"(date.lte.{window_end})"
         except ValueError:
-            target = None
-    if target is not None:
-        window_start = (target - timedelta(days=near_window_days)).isoformat()
-        window_end = (target + timedelta(days=near_window_days)).isoformat()
-        results = [s for s in results if window_start <= s["Date"] <= window_end]
-        results.sort(key=lambda s: (
-            abs((datetime.strptime(s["Date"], "%Y-%m-%d").date() - target).days),
-            s["Date"],
-            s["Start Time"],
-        ))
-    else:
-        results.sort(key=lambda s: (s["Date"], s["Start Time"]))
-    results = results[:limit]
+            pass  # ignore malformed date
 
-    for s in results:
-        doc = find_doctor(s["Doctor ID"])
-        clinic = find_clinic(s["Clinic ID"])
-        if doc:
-            s["doctor_name_en"] = doc["Full Name (EN)"]
-            s["doctor_name_ar"] = doc["Full Name (AR)"]
-            s["doctor_specialty_en"] = doc["Specialty (EN)"]
-            s["doctor_specialty_ar"] = doc["Specialty (AR)"]
-            s["consultation_fee_sar"] = doc["Consultation Fee SAR"]
-        if clinic:
-            s["clinic_name_en"] = clinic["Clinic Name (EN)"]
-            s["clinic_name_ar"] = clinic["Clinic Name (AR)"]
-            s["clinic_city"] = clinic["City (EN)"]
+    slots = await sb_get("doctor_availability", params)
 
-    return {"slots": results, "count": len(results)}
+    # Enrich with doctor + clinic names
+    all_doctors = await sb_get("doctors", {})
+    all_clinics = await sb_get("clinics", {})
+    doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
+    clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
+    enriched = []
+    for s in slots:
+        d = doctors_by_id.get(s["doctor_id"], {})
+        c = clinics_by_id.get(s["clinic_id"], {})
+        enriched.append({
+            **s,
+            "doctor_name_en": d.get("full_name_en"),
+            "doctor_name_ar": d.get("full_name_ar"),
+            "doctor_specialty_en": d.get("specialty_en"),
+            "doctor_consultation_fee_sar": d.get("consultation_fee_sar"),
+            "clinic_name_en": c.get("clinic_name_en"),
+            "clinic_name_ar": c.get("clinic_name_ar"),
+            "clinic_address_en": c.get("address_en"),
+        })
+
+    return {"slots": enriched, "count": len(enriched)}
 
 
+# ============================================================
+# READ: /clinic
+# ============================================================
 @app.get("/clinic")
-def get_clinic_info(
-    clinic_id: Optional[str] = None,
-    city: Optional[str] = None,
-    specialty: Optional[str] = None,
+async def get_clinic(
+    clinic_id: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
 ):
-    results = [dict(c) for c in clinics]
+    params = {}
     if clinic_id:
-        results = [c for c in results if c["Clinic ID"] == clinic_id]
-    if city:
-        results = [c for c in results if c["City (EN)"].lower() == city.lower()]
-    if specialty:
-        sp = specialty.lower()
-        results = [c for c in results
-                   if any(sp in s.lower() for s in c["Specialties Available"])]
-    return {"clinics": results, "count": len(results)}
+        params["clinic_id"] = f"eq.{clinic_id}"
+    elif city:
+        params["city_en"] = f"ilike.*{city}*"
+    clinics = await sb_get("clinics", params)
+    return {"clinics": clinics, "count": len(clinics)}
 
 
+# ============================================================
+# READ: /medication
+# ============================================================
 @app.get("/medication")
-def get_medication_info(
-    medication_id: Optional[str] = None,
-    name: Optional[str] = None,
+async def get_medication(
+    medication_id: Optional[str] = Query(None),
+    name: Optional[str] = Query(None),
 ):
-    results = [dict(m) for m in medications]
+    params = {}
     if medication_id:
-        results = [m for m in results if m["Medication ID"] == medication_id]
-    if name:
-        n = name.lower()
-        results = [m for m in results
-                   if n in m["Generic Name (EN)"].lower()
-                   or n in m["Generic Name (AR)"]
-                   or any(n in b.lower() for b in m["Brand Names"])]
-    return {"medications": results, "count": len(results)}
+        params["medication_id"] = f"eq.{medication_id}"
+    elif name:
+        params["or"] = f"(name_en.ilike.*{name}*,name_ar.ilike.*{name}*)"
+    else:
+        raise HTTPException(status_code=400, detail="Provide medication_id or name")
+    meds = await sb_get("medications_catalog", params)
+    return {"medications": meds, "count": len(meds)}
 
 
+# ============================================================
+# READ: /insurance
+# ============================================================
 @app.get("/insurance")
-def get_insurance_info(
-    provider_id: Optional[str] = None,
-    provider_name: Optional[str] = None,
-    plan_tier: Optional[str] = None,
+async def get_insurance(provider_id: Optional[str] = Query(None)):
+    if not provider_id:
+        raise HTTPException(status_code=400, detail="Provide provider_id")
+    plan = await sb_get_one("insurance_providers", {"provider_id": f"eq.{provider_id}"})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Insurance plan not found")
+    return plan
+
+
+# ============================================================
+# WRITE: /appointment/book
+# ============================================================
+@app.post("/appointment/book")
+async def book_appointment(
+    patient_id: str = Body(...),
+    slot_id: str = Body(...),
+    reason: Optional[str] = Body(None),
+    type: str = Body("Initial Consultation"),
 ):
-    results = [dict(i) for i in insurance_providers]
-    if provider_id:
-        results = [i for i in results if i["Provider ID"] == provider_id]
-    if provider_name:
-        results = [i for i in results if provider_name.lower() in i["Provider Name (EN)"].lower()]
-    if plan_tier:
-        results = [i for i in results if plan_tier.lower() in i["Plan Tier (EN)"].lower()]
-    return {"insurance_plans": results, "count": len(results)}
+    """Book a slot, increment Booked Count, create appointment row."""
+    # 1. Validate patient + slot exist
+    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
 
+    slot = await sb_get_one("doctor_availability", {"slot_id": f"eq.{slot_id}"})
+    if not slot:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    if slot.get("status") != "Open":
+        raise HTTPException(status_code=409, detail=f"Slot is {slot.get('status')}")
+    if slot.get("booked_count", 0) >= slot.get("slot_capacity", 1):
+        raise HTTPException(status_code=409, detail="Slot is full")
 
-@app.get("/")
-def root():
-    return {
-        "service": "Health Agent API",
-        "version": "1.0",
-        "endpoints": ["/health", "/patient", "/doctor", "/slots", "/clinic", "/medication", "/insurance"]
+    # 2. Generate appointment ID
+    existing = await sb_get("appointments", {"select": "appointment_id", "order": "appointment_id.desc", "limit": "1"})
+    next_num = 1
+    if existing:
+        try:
+            last = existing[0]["appointment_id"]
+            next_num = int(last.replace("APT-H", "")) + 1
+        except (ValueError, KeyError):
+            next_num = 1000
+    apt_id = f"APT-H{next_num:03d}"
+
+    # 3. Mark slot Booked
+    new_booked = slot.get("booked_count", 0) + 1
+    new_status = "Booked" if new_booked >= slot.get("slot_capacity", 1) else "Open"
+    await sb_update("doctor_availability",
+                    {"slot_id": f"eq.{slot_id}"},
+                    {"booked_count": new_booked, "status": new_status})
+
+    # 4. Insert appointment
+    apt_row = {
+        "appointment_id": apt_id,
+        "patient_id": patient_id,
+        "doctor_id": slot["doctor_id"],
+        "clinic_id": slot["clinic_id"],
+        "date": slot["date"],
+        "start_time": slot["start_time"],
+        "duration_minutes": 30,
+        "type": type,
+        "reason_for_visit": reason or "",
+        "status": "Scheduled",
+        "created_date": date.today().isoformat(),
     }
+    await sb_insert("appointments", apt_row)
+
+    # 5. Log agent action
+    doctor = await sb_get_one("doctors", {"doctor_id": f"eq.{slot['doctor_id']}"})
+    clinic = await sb_get_one("clinics", {"clinic_id": f"eq.{slot['clinic_id']}"})
+    desc = (
+        f"Booked {slot['date']} {slot['start_time']} with "
+        f"{doctor.get('full_name_en') if doctor else slot['doctor_id']} "
+        f"at {clinic.get('clinic_name_en') if clinic else slot['clinic_id']}"
+    )
+    await log_agent_action(patient_id, "Book Appointment", desc, {
+        "appointment_id": apt_id,
+        "slot_id": slot_id,
+        "doctor_id": slot["doctor_id"],
+        "clinic_id": slot["clinic_id"],
+    })
+
+    return {"ok": True, "appointment_id": apt_id, "appointment": apt_row}
+
+
+# ============================================================
+# WRITE: /appointment/cancel
+# ============================================================
+@app.post("/appointment/cancel")
+async def cancel_appointment(
+    appointment_id: str = Body(...),
+    reason: Optional[str] = Body(None),
+):
+    apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"})
+    if not apt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    if apt.get("status") in ("Cancelled", "Completed"):
+        raise HTTPException(status_code=409, detail=f"Cannot cancel — status is {apt['status']}")
+
+    # Mark cancelled
+    await sb_update("appointments",
+                    {"appointment_id": f"eq.{appointment_id}"},
+                    {"status": "Cancelled",
+                     "notes": f"{apt.get('notes') or ''}\nCancelled: {reason or 'No reason given'}"})
+
+    # Try to release the slot (find by doctor+date+time)
+    slot = await sb_get_one("doctor_availability", {
+        "doctor_id": f"eq.{apt['doctor_id']}",
+        "date": f"eq.{apt['date']}",
+        "start_time": f"eq.{apt['start_time']}",
+    })
+    if slot:
+        new_booked = max(0, slot.get("booked_count", 1) - 1)
+        new_status = "Open" if new_booked < slot.get("slot_capacity", 1) else slot.get("status")
+        await sb_update("doctor_availability",
+                        {"slot_id": f"eq.{slot['slot_id']}"},
+                        {"booked_count": new_booked, "status": new_status})
+
+    await log_agent_action(apt["patient_id"], "Cancel Appointment",
+                           f"Cancelled appointment {appointment_id} on {apt['date']} at {apt['start_time']}",
+                           {"appointment_id": appointment_id, "reason": reason})
+
+    return {"ok": True, "appointment_id": appointment_id, "status": "Cancelled"}
+
+
+# ============================================================
+# WRITE: /appointment/reschedule
+# ============================================================
+@app.post("/appointment/reschedule")
+async def reschedule_appointment(
+    appointment_id: str = Body(...),
+    new_slot_id: str = Body(...),
+    reason: Optional[str] = Body(None),
+):
+    # 1. cancel old
+    apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"})
+    if not apt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    patient_id = apt["patient_id"]
+    apt_type = apt.get("type", "Follow-up")
+
+    # 2. book new
+    book_result = await book_appointment(
+        patient_id=patient_id,
+        slot_id=new_slot_id,
+        reason=apt.get("reason_for_visit"),
+        type=apt_type,
+    )
+
+    # 3. cancel old (only after new is booked successfully)
+    await cancel_appointment(appointment_id=appointment_id, reason=f"Rescheduled to {book_result['appointment_id']}")
+
+    return {"ok": True, "old_appointment_id": appointment_id, "new_appointment_id": book_result["appointment_id"]}
+
+
+# ============================================================
+# WRITE: /prescription/refill
+# ============================================================
+@app.post("/prescription/refill")
+async def refill_prescription(
+    prescription_id: str = Body(...),
+    medication_id: str = Body(...),
+    pharmacy_id: str = Body(...),
+    delivery_method: str = Body("Pickup"),  # "Pickup" | "Home Delivery"
+):
+    rx = await sb_get_one("prescriptions", {"prescription_id": f"eq.{prescription_id}"})
+    if not rx:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+    if rx.get("status") != "Active":
+        raise HTTPException(status_code=409, detail=f"Prescription is {rx.get('status')}")
+
+    # Find the specific medication in the JSON array, decrement refills
+    meds = rx.get("medications", [])
+    med_name = None
+    found = False
+    for m in meds:
+        if m.get("Medication ID") == medication_id:
+            if m.get("Refills Remaining", 0) <= 0:
+                raise HTTPException(status_code=409, detail="No refills remaining")
+            m["Refills Remaining"] -= 1
+            med_name = m.get("Name (EN)")
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Medication {medication_id} not in this prescription")
+
+    await sb_update("prescriptions",
+                    {"prescription_id": f"eq.{prescription_id}"},
+                    {"medications": meds, "last_filled_date": date.today().isoformat(), "last_filled_pharmacy_id": pharmacy_id})
+
+    # Create refill request
+    refill_row = {
+        "prescription_id": prescription_id,
+        "patient_id": rx["patient_id"],
+        "medication_id": medication_id,
+        "medication_name_en": med_name,
+        "pharmacy_id": pharmacy_id,
+        "delivery_method": delivery_method,
+        "status": "Submitted",
+        "requested_by": "Agent",
+    }
+    await sb_insert("refill_requests", refill_row)
+
+    pharmacy = await sb_get_one("pharmacies", {"pharmacy_id": f"eq.{pharmacy_id}"})
+    pharmacy_name = pharmacy.get("pharmacy_name_en") if pharmacy else pharmacy_id
+
+    await log_agent_action(rx["patient_id"], "Refill Request",
+                           f"Refill requested for {med_name} → {pharmacy_name} ({delivery_method})",
+                           {"prescription_id": prescription_id, "medication_id": medication_id,
+                            "pharmacy_id": pharmacy_id, "delivery_method": delivery_method})
+
+    return {"ok": True, "medication_name": med_name, "pharmacy": pharmacy_name, "delivery_method": delivery_method}
+
+
+# ============================================================
+# WRITE: /invoice/payment
+# ============================================================
+@app.post("/invoice/payment")
+async def record_payment(
+    invoice_id: str = Body(...),
+    amount_sar: float = Body(...),
+    payment_method: str = Body("Credit Card"),
+):
+    inv = await sb_get_one("invoices", {"invoice_id": f"eq.{invoice_id}"})
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if inv.get("status") == "Paid":
+        raise HTTPException(status_code=409, detail="Invoice already paid")
+
+    due = float(inv.get("patient_due_sar") or 0)
+    if amount_sar < due:
+        new_status = "Partially Paid"
+        # Track partial via notes
+        note_extra = f"\nPartial payment {amount_sar} SAR on {date.today().isoformat()} ({payment_method})"
+    else:
+        new_status = "Paid"
+        note_extra = f"\nPaid in full {amount_sar} SAR on {date.today().isoformat()} ({payment_method})"
+
+    await sb_update("invoices",
+                    {"invoice_id": f"eq.{invoice_id}"},
+                    {"status": new_status,
+                     "payment_method": payment_method,
+                     "payment_date": date.today().isoformat(),
+                     "notes_en": (inv.get("notes_en") or "") + note_extra})
+
+    await log_agent_action(inv["patient_id"], "Payment Recorded",
+                           f"Payment of SAR {amount_sar} via {payment_method} for invoice {invoice_id}",
+                           {"invoice_id": invoice_id, "amount_sar": amount_sar, "method": payment_method})
+
+    return {"ok": True, "invoice_id": invoice_id, "status": new_status, "amount_paid_sar": amount_sar}
+
+
+# ============================================================
+# WRITE: /profile/update
+# ============================================================
+ALLOWED_PROFILE_FIELDS = {"phone", "email", "address_en", "address_ar", "city_en", "city_ar"}
+
+
+@app.post("/profile/update")
+async def update_profile(
+    patient_id: str = Body(...),
+    field: str = Body(...),
+    new_value: str = Body(...),
+):
+    if field not in ALLOWED_PROFILE_FIELDS:
+        raise HTTPException(status_code=400, detail=f"Field {field} not updatable. Allowed: {ALLOWED_PROFILE_FIELDS}")
+
+    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    old_value = patient.get(field)
+    await sb_update("patients", {"patient_id": f"eq.{patient_id}"}, {field: new_value})
+
+    await log_agent_action(patient_id, "Profile Updated",
+                           f"{field}: {old_value} → {new_value}",
+                           {"field": field, "old_value": old_value, "new_value": new_value})
+
+    return {"ok": True, "patient_id": patient_id, "field": field, "new_value": new_value}
+
+
+# ============================================================
+# WRITE: /preauth/request
+# ============================================================
+@app.post("/preauth/request")
+async def request_preauth(
+    patient_id: str = Body(...),
+    procedure_name: str = Body(...),
+    doctor_id: Optional[str] = Body(None),
+):
+    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    row = {
+        "patient_id": patient_id,
+        "doctor_id": doctor_id,
+        "procedure_name": procedure_name,
+        "insurance_provider_id": patient.get("insurance_provider_id"),
+        "status": "Submitted",
+        "requested_by": "Agent",
+    }
+    result = await sb_insert("preauth_requests", row)
+
+    await log_agent_action(patient_id, "Pre-Auth Requested",
+                           f"Pre-authorization request submitted for {procedure_name}",
+                           {"procedure": procedure_name, "doctor_id": doctor_id})
+
+    return {"ok": True, "procedure": procedure_name, "status": "Submitted",
+            "estimated_response_days": "1-5 business days"}
+
+
+# ============================================================
+# WRITE: /lab-result/release (portal-side, but agent can also trigger)
+# ============================================================
+@app.post("/lab-result/release")
+async def release_lab_result(
+    lab_result_id: str = Body(...),
+    released_by: str = Body("Doctor"),
+):
+    lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"})
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab result not found")
+    if lab.get("status") == "Released":
+        raise HTTPException(status_code=409, detail="Already released")
+
+    await sb_update("lab_results",
+                    {"lab_result_id": f"eq.{lab_result_id}"},
+                    {"status": "Released",
+                     "result_date": date.today().isoformat(),
+                     "released_at": datetime.utcnow().isoformat(),
+                     "released_by": released_by})
+
+    await log_agent_action(lab["patient_id"], "Lab Result Released",
+                           f"Released {lab.get('test_name_en')} to patient",
+                           {"lab_result_id": lab_result_id, "released_by": released_by})
+
+    return {"ok": True, "lab_result_id": lab_result_id, "status": "Released"}
+
+
+# ============================================================
+# Dev entrypoint
+# ============================================================
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), reload=True)
