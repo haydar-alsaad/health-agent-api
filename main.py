@@ -175,6 +175,8 @@ SEED_FILES = [
     ("invoices", "invoices.json"),
     ("medical_history", "medical_history.json"),
     ("doctor_availability", "doctor_availability.json"),
+    ("preauth_requests", "preauth_requests.json"),
+    ("refill_requests", "refill_requests.json"),
 ]
 
 
@@ -392,6 +394,30 @@ def json_to_db_row(table: str, raw: dict) -> dict:
             "Slot Capacity": "slot_capacity",
             "Booked Count": "booked_count",
             "Status": "status",
+        },
+        "preauth_requests": {
+            "Preauth ID": "preauth_id",
+            "Patient ID": "patient_id",
+            "Doctor ID": "doctor_id",
+            "Procedure Name": "procedure_name",
+            "Insurance Provider ID": "insurance_provider_id",
+            "Status": "status",
+            "Requested At": "requested_at",
+            "Requested By": "requested_by",
+            "Reviewed At": "reviewed_at",
+            "Reviewer Notes": "reviewer_notes",
+        },
+        "refill_requests": {
+            "Prescription ID": "prescription_id",
+            "Patient ID": "patient_id",
+            "Medication ID": "medication_id",
+            "Medication Name (EN)": "medication_name_en",
+            "Pharmacy ID": "pharmacy_id",
+            "Delivery Method": "delivery_method",
+            "Status": "status",
+            "Requested At": "requested_at",
+            "Requested By": "requested_by",
+            "Processed At": "processed_at",
         },
     }
     m = mappings.get(table, {})
