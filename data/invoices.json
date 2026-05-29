@@ -169,8 +169,8 @@
     "Patient ID": "PAT-011",
     "Linked Appointment ID": "APT-H100",
     "Linked Lab Result ID": null,
-    "Issue Date": "2026-02-18",
-    "Due Date": "2026-03-18",
+    "Issue Date": "2026-05-10",
+    "Due Date": "2026-06-09",
     "Items": [
       {
         "description (EN)": "Orthopedic Consultation",
@@ -199,8 +199,8 @@
     "Patient ID": "PAT-011",
     "Linked Appointment ID": "APT-H101",
     "Linked Lab Result ID": "LAB-H100",
-    "Issue Date": "2026-04-12",
-    "Due Date": "2026-05-12",
+    "Issue Date": "2026-05-15",
+    "Due Date": "2026-06-14",
     "Items": [
       {
         "description (EN)": "Orthopedic Follow-up",
