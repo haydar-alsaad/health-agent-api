@@ -1,0 +1,38 @@
+[
+  {
+    "Prescription ID": "RX-2026-00452",
+    "Patient ID": "PAT-002",
+    "Medication ID": "MED-001",
+    "Medication Name (EN)": "Atorvastatin",
+    "Pharmacy ID": "PHM-002",
+    "Delivery Method": "Pickup",
+    "Status": "Submitted",
+    "Requested At": "2026-06-18T08:45:00Z",
+    "Requested By": "Agent",
+    "Processed At": null
+  },
+  {
+    "Prescription ID": "RX-2026-00210",
+    "Patient ID": "PAT-003",
+    "Medication ID": "MED-004",
+    "Medication Name (EN)": "Metformin",
+    "Pharmacy ID": "PHM-002",
+    "Delivery Method": "Home Delivery",
+    "Status": "Approved",
+    "Requested At": "2026-06-19T13:20:00Z",
+    "Requested By": "Agent",
+    "Processed At": null
+  },
+  {
+    "Prescription ID": "RX-2026-00801",
+    "Patient ID": "PAT-009",
+    "Medication ID": "MED-009",
+    "Medication Name (EN)": "Sertraline",
+    "Pharmacy ID": "PHM-001",
+    "Delivery Method": "Pickup",
+    "Status": "Submitted",
+    "Requested At": "2026-06-22T10:15:00Z",
+    "Requested By": "Agent",
+    "Processed At": null
+  }
+]

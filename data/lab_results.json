@@ -422,5 +422,41 @@
     ],
     "Notes (EN)": "Stable lung function. Asthma well controlled on current regimen.",
     "Notes (AR)": "وظائف الرئة مستقرة. الربو مسيطر عليه جيداً بالنظام الحالي."
+  },
+  {
+    "Lab Result ID": "LAB-H200",
+    "Patient ID": "PAT-002",
+    "Ordering Doctor ID": "DR-001",
+    "Clinic ID": "CLN-002",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Cardiac Enzymes (Troponin I, CK-MB)",
+    "Test Name (AR)": "إنزيمات القلب",
+    "Test Code": "CARD-ENZ",
+    "Order Date": "2026-06-18",
+    "Result Date": null,
+    "Status": "Pending",
+    "Estimated Available": "2026-06-20",
+    "Linked Appointment ID": null,
+    "Results": [],
+    "Notes (EN)": "Routine cardiac enzyme panel ordered as part of post-angioplasty 5-month review.",
+    "Notes (AR)": "تحليل دوري لإنزيمات القلب كجزء من مراجعة 5 أشهر بعد توسيع الشرايين."
+  },
+  {
+    "Lab Result ID": "LAB-H201",
+    "Patient ID": "PAT-008",
+    "Ordering Doctor ID": "DR-005",
+    "Clinic ID": "CLN-001",
+    "Test Type": "Lab Panel",
+    "Test Name (EN)": "Urinalysis (Follow-up post kidney stone)",
+    "Test Name (AR)": "تحليل البول (متابعة بعد حصى الكلى)",
+    "Test Code": "UA",
+    "Order Date": "2026-06-19",
+    "Result Date": null,
+    "Status": "Pending",
+    "Estimated Available": "2026-06-21",
+    "Linked Appointment ID": null,
+    "Results": [],
+    "Notes (EN)": "Follow-up urinalysis 8 weeks post kidney stone passage. Monitoring for recurrence.",
+    "Notes (AR)": "تحليل بول متابعة بعد 8 أسابيع من خروج الحصى. مراقبة التكرار."
   }
 ]
