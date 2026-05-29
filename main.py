@@ -805,6 +805,49 @@ async def get_insurance(provider_id: Optional[str] = Query(None)):
 
 
 # ============================================================
+# READ: /lab-result/fetch
+# ============================================================
+@app.get("/lab-result/fetch")
+async def fetch_lab_document(lab_result_id: str = Query(...)):
+    """
+    Fetch the pre-generated PDF document for a released lab result.
+    Returns the download URL and metadata. The agent sends this URL via
+    send_whatsapp_media to deliver the PDF to the patient.
+    """
+    # 1) Verify the lab result exists and is Released
+    lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"})
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab result not found")
+
+    if lab.get("status") != "Released":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Lab result is {lab.get('status', 'not Released')} — no PDF available yet"
+        )
+
+    # 2) Find the associated PDF document
+    doc = await sb_get_one("lab_documents", {"lab_result_id": f"eq.{lab_result_id}"})
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail="No PDF document found for this lab result"
+        )
+
+    # 3) Return the URL and metadata
+    return {
+        "ok": True,
+        "lab_result_id": lab_result_id,
+        "patient_id": lab.get("patient_id"),
+        "test_name_en": lab.get("test_name_en"),
+        "test_name_ar": lab.get("test_name_ar"),
+        "result_date": lab.get("result_date"),
+        "download_url": doc.get("download_url"),
+        "filename": doc.get("filename"),
+        "mime_type": doc.get("mime_type", "application/pdf"),
+    }
+
+
+# ============================================================
 # WRITE: /appointment/book
 # ============================================================
 @app.post("/appointment/book")
