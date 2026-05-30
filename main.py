@@ -551,6 +551,8 @@ async def get_patient(
         all_clinics,
         insurance,
         primary_doctor,
+        refill_reqs,
+        preauth_reqs,
     ) = await asyncio.gather(
         sb_get("appointments", {
             "patient_id": f"eq.{pid}",
@@ -580,6 +582,14 @@ async def get_patient(
         sb_get_one("doctors", {
             "doctor_id": f"eq.{patient.get('primary_care_doctor_id', '')}"
         }) if patient.get("primary_care_doctor_id") else asyncio.sleep(0, result=None),
+        sb_get("refill_requests", {
+            "patient_id": f"eq.{pid}",
+            "order": "requested_at.desc",
+        }),
+        sb_get("preauth_requests", {
+            "patient_id": f"eq.{pid}",
+            "order": "requested_at.desc",
+        }),
     )
 
     doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
@@ -602,6 +612,17 @@ async def get_patient(
     pending_lab_results = [l for l in lab_results if l.get("status") == "Pending"]
     outstanding_invoices = [i for i in invoices if i.get("status") == "Outstanding"]
     paid_invoices = [i for i in invoices if i.get("status") == "Paid"]
+
+    # Pending refill and preauth requests — these are in-flight workflows the agent
+    # should be aware of before submitting duplicates.
+    pending_refill_requests = [
+        r for r in (refill_reqs or [])
+        if r.get("status") in ("Submitted", "Approved", "In Progress")
+    ]
+    pending_preauth_requests = [
+        p for p in (preauth_reqs or [])
+        if p.get("status") in ("Submitted", "Under Review", "Approved")
+    ]
 
     # Compute allergies alert
     allergies = patient.get("allergies") or []
@@ -633,6 +654,8 @@ async def get_patient(
             "paid_invoice_count": len(paid_invoices),
             "outstanding_invoice_count": len(outstanding_invoices),
         },
+        "pending_refill_requests": pending_refill_requests,
+        "pending_preauth_requests": pending_preauth_requests,
         "medical_history": history,
     }
 
