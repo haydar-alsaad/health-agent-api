@@ -1010,15 +1010,25 @@ async def refill_prescription(
         raise HTTPException(status_code=409, detail=f"Prescription is {rx.get('status')}")
 
     # Find the specific medication in the JSON array, decrement refills
+    # Lovable normalized JSONB keys from "Medication ID" → "medication_id", etc.
+    # We tolerate both formats for safety.
     meds = rx.get("medications", [])
     med_name = None
     found = False
     for m in meds:
-        if m.get("Medication ID") == medication_id:
-            if m.get("Refills Remaining", 0) <= 0:
+        m_id = m.get("medication_id") or m.get("Medication ID")
+        if m_id == medication_id:
+            refills_remaining = m.get("refills_remaining")
+            if refills_remaining is None:
+                refills_remaining = m.get("Refills Remaining", 0)
+            if refills_remaining <= 0:
                 raise HTTPException(status_code=409, detail="No refills remaining")
-            m["Refills Remaining"] -= 1
-            med_name = m.get("Name (EN)")
+            # Decrement in whichever key the data uses
+            if "refills_remaining" in m:
+                m["refills_remaining"] = refills_remaining - 1
+            else:
+                m["Refills Remaining"] = refills_remaining - 1
+            med_name = m.get("name_en") or m.get("Name (EN)")
             found = True
             break
     if not found:
