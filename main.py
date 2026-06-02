@@ -113,6 +113,48 @@ async def sb_get_one(table: str, params: Optional[dict] = None) -> Optional[dict
     return rows[0] if rows else None
 
 
+# ============================================================
+# In-process cache for rarely-changing reference tables
+# ============================================================
+# doctors (21 rows) and clinics (3 rows) change very rarely — a doctor
+# is added every couple of months at most. Refetching the whole table on
+# every /patient call is wasted work that adds ~1 Supabase round-trip
+# to the critical path. Cache them in memory with a short TTL so the
+# first request after a deploy is normal, but subsequent requests skip
+# the network entirely.
+#
+# Per-replica cache (Railway may run multiple). Each replica warms on
+# its first request. Cache lives until process restart or TTL expires.
+from time import monotonic as _monotonic
+
+_REF_CACHE_TTL = 60.0  # seconds
+_reference_cache: dict[str, dict] = {
+    "doctors": {"data": None, "ts": 0.0},
+    "clinics": {"data": None, "ts": 0.0},
+}
+
+
+async def get_doctors_cached() -> list:
+    """Return the doctors table from cache or fetch+cache it."""
+    c = _reference_cache["doctors"]
+    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
+        # Only the fields needed for enrichment + doctor info lookups.
+        c["data"] = await sb_get("doctors", {
+            "select": "doctor_id,full_name_en,full_name_ar,specialty_en,specialty_ar,sub_specialty_en,sub_specialty_ar,title_en,title_ar,primary_clinic_id,languages,years_of_experience,qualifications,consultation_fee_sar,followup_fee_sar,bio_en,bio_ar,status"
+        })
+        c["ts"] = _monotonic()
+    return c["data"]
+
+
+async def get_clinics_cached() -> list:
+    """Return the clinics table from cache or fetch+cache it."""
+    c = _reference_cache["clinics"]
+    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
+        c["data"] = await sb_get("clinics", {"select": "*"})
+        c["ts"] = _monotonic()
+    return c["data"]
+
+
 async def sb_insert(table: str, payload: dict | list) -> Any:
     """INSERT into Supabase. Returns inserted row(s)."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -531,9 +573,13 @@ async def get_patient(
 
     pid = patient["patient_id"]
 
-    # Step 2a: fetch just the patient's own data in parallel. Doctors and clinics
-    # are fetched in step 2b AFTER we know which IDs we actually need for enrichment
-    # (vs the old approach of pulling the entire doctors + clinics tables every call).
+    # Step 2: fetch ALL related data in parallel. Doctors and clinics come from
+    # an in-process cache (refreshed every 60s) so we skip the Supabase round-trip
+    # on the vast majority of warm calls — the tables change rarely.
+    #
+    # Lessons from Education (main.py line 322): "These calls have no dependencies
+    # on each other, so we batch them with asyncio.gather() to overlap network latency
+    # instead of stacking it. On warm Supabase this drops ~800ms-1s vs sequential calls."
     today = date.today().isoformat()
     (
         appointments,
@@ -541,6 +587,8 @@ async def get_patient(
         lab_results,
         invoices,
         history,
+        all_doctors,
+        all_clinics,
         insurance,
         primary_doctor,
         refill_reqs,
@@ -566,6 +614,8 @@ async def get_patient(
             "patient_id": f"eq.{pid}",
             "order": "event_date.desc",
         }),
+        get_doctors_cached(),
+        get_clinics_cached(),
         sb_get_one("insurance_providers", {
             "provider_id": f"eq.{patient.get('insurance_provider_id', '')}"
         }) if patient.get("insurance_provider_id") else asyncio.sleep(0, result=None),
@@ -582,39 +632,8 @@ async def get_patient(
         }),
     )
 
-    # Step 2b: collect just the doctor + clinic IDs referenced by THIS patient's
-    # appointments, then fetch only those rows. For a typical patient this is
-    # 1-3 doctors and 1-2 clinics instead of the entire tables.
-    referenced_doctor_ids = {
-        apt["doctor_id"] for apt in appointments if apt.get("doctor_id")
-    }
-    referenced_clinic_ids = {
-        apt["clinic_id"] for apt in appointments if apt.get("clinic_id")
-    }
-    # Include primary doctor in case it differs from appointment doctors
-    if patient.get("primary_care_doctor_id"):
-        referenced_doctor_ids.add(patient["primary_care_doctor_id"])
-
-    async def _fetch_doctors_for_ids(ids: set) -> list:
-        if not ids:
-            return []
-        # PostgREST 'in.(a,b,c)' filter
-        id_list = ",".join(sorted(ids))
-        return await sb_get("doctors", {"doctor_id": f"in.({id_list})"})
-
-    async def _fetch_clinics_for_ids(ids: set) -> list:
-        if not ids:
-            return []
-        id_list = ",".join(sorted(ids))
-        return await sb_get("clinics", {"clinic_id": f"in.({id_list})"})
-
-    referenced_doctors, referenced_clinics = await asyncio.gather(
-        _fetch_doctors_for_ids(referenced_doctor_ids),
-        _fetch_clinics_for_ids(referenced_clinic_ids),
-    )
-
-    doctors_by_id = {d["doctor_id"]: d for d in referenced_doctors}
-    clinics_by_id = {c["clinic_id"]: c for c in referenced_clinics}
+    doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
+    clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
 
     # Step 3: enrich + segment
     upcoming = []
