@@ -455,5 +455,81 @@
     "Bio (EN)": "Dr. Al-Yami treats asthma, COPD, sleep apnea, and respiratory infections.",
     "Bio (AR)": "د. اليامي يعالج الربو ومرض الانسداد الرئوي المزمن وانقطاع التنفس أثناء النوم والالتهابات التنفسية.",
     "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-019",
+    "Full Name (EN)": "Dr. Salman Al-Najjar",
+    "Full Name (AR)": "د. سلمان النجار",
+    "Specialty (EN)": "Urology",
+    "Specialty (AR)": "المسالك البولية",
+    "Sub-specialty (EN)": "Endourology & Kidney Stones",
+    "Sub-specialty (AR)": "جراحة المسالك بالمنظار وحصى الكلى",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 18,
+    "Qualifications": "MD, FRCS (Urology — UK), Fellowship in Minimally Invasive Urology — King Faisal Specialist Hospital",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [
+      "CLN-002"
+    ],
+    "Consultation Fee SAR": 550,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Najjar specializes in kidney stone management, prostate health, and minimally invasive urological surgery. 18 years of experience treating both routine and complex urological conditions.",
+    "Bio (AR)": "د. النجار متخصص في علاج حصى الكلى وصحة البروستات وجراحة المسالك البولية بالمنظار. 18 عاماً من الخبرة في علاج الحالات الروتينية والمعقدة.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-020",
+    "Full Name (EN)": "Dr. Maha Al-Sulaymani",
+    "Full Name (AR)": "د. مها السليماني",
+    "Specialty (EN)": "Nephrology",
+    "Specialty (AR)": "أمراض الكلى",
+    "Sub-specialty (EN)": "Chronic Kidney Disease & Hypertension",
+    "Sub-specialty (AR)": "مرض الكلى المزمن وارتفاع ضغط الدم",
+    "Title (EN)": "Consultant",
+    "Title (AR)": "استشاري",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 14,
+    "Qualifications": "MD, Saudi Board in Internal Medicine, Fellowship in Nephrology — Cleveland Clinic",
+    "Primary Clinic ID": "CLN-001",
+    "Visiting Clinic IDs": [],
+    "Consultation Fee SAR": 550,
+    "Follow-up Fee SAR": 350,
+    "Bio (EN)": "Dr. Al-Sulaymani specializes in chronic kidney disease, hypertension management, and diabetic nephropathy. She works closely with endocrinology and cardiology for integrated care of high-risk patients.",
+    "Bio (AR)": "د. السليماني متخصصة في أمراض الكلى المزمنة وإدارة ضغط الدم واعتلال الكلى السكري. تعمل بشكل وثيق مع تخصصي الغدد الصماء والقلب لتقديم رعاية متكاملة للمرضى عالي المخاطر.",
+    "Status": "Available"
+  },
+  {
+    "Doctor ID": "DR-021",
+    "Full Name (EN)": "Dr. Khalid Al-Sharif",
+    "Full Name (AR)": "د. خالد الشريف",
+    "Specialty (EN)": "Medical Oncology",
+    "Specialty (AR)": "علاج الأورام الطبي",
+    "Sub-specialty (EN)": "Solid Tumors & Survivorship Care",
+    "Sub-specialty (AR)": "الأورام الصلبة ورعاية الناجين",
+    "Title (EN)": "Senior Consultant",
+    "Title (AR)": "استشاري أول",
+    "Languages": [
+      "Arabic",
+      "English"
+    ],
+    "Years of Experience": 20,
+    "Qualifications": "MD, Saudi Board in Internal Medicine, Fellowship in Medical Oncology — MD Anderson Cancer Center",
+    "Primary Clinic ID": "CLN-002",
+    "Visiting Clinic IDs": [
+      "CLN-001"
+    ],
+    "Consultation Fee SAR": 700,
+    "Follow-up Fee SAR": 450,
+    "Bio (EN)": "Dr. Al-Sharif specializes in the medical management of solid tumors, including breast, colorectal, and lung cancers. He leads the survivorship care program for post-treatment follow-up patients.",
+    "Bio (AR)": "د. الشريف متخصص في العلاج الطبي للأورام الصلبة بما في ذلك سرطان الثدي والقولون والرئة. يقود برنامج رعاية الناجين لمرضى المتابعة بعد العلاج.",
+    "Status": "Available"
   }
 ]
