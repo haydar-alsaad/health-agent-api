@@ -74,7 +74,13 @@ http_client: Optional[httpx.AsyncClient] = None
 @app.on_event("startup")
 async def startup():
     global http_client
+    # HTTP/2 lets us multiplex unlimited parallel requests over ONE TCP connection
+    # to Supabase. Without it, httpx defaults to HTTP/1.1 which only allows one
+    # request per connection at a time — so 9 parallel queries hit the
+    # ~6-concurrent-connection limit and 3 queue up for ~300 ms. Requires h2 package
+    # (added via httpx[http2] in requirements.txt).
     http_client = httpx.AsyncClient(
+        http2=True,
         timeout=30.0,
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
     )
