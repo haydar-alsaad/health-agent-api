@@ -1228,6 +1228,80 @@ async def release_lab_result(
 # ============================================================
 # WRITE: /patient/register
 # ============================================================
+
+# Allowed enum values for the intake fields
+_REGISTRATION_REASONS = {
+    "current_concern",
+    "new_primary",
+    "follow_up",
+    "wellness",
+    "other",
+}
+_INSURANCE_STATUSES = {
+    "has_provider",
+    "has_insurance_unknown_provider",
+    "self_pay",
+    "unknown",
+}
+
+
+def _compose_intake_notes(
+    registration_date: str,
+    reason: Optional[str],
+    concern_note: Optional[str],
+    insurance_status: Optional[str],
+    insurance_provider: Optional[str],
+) -> str:
+    """
+    Build a clean, human-readable staff-facing summary of the registration.
+    The staff portal renders this prominently on Pending Verification patients
+    so the staff member calling for verification has full context.
+    """
+    parts = [f"Patient self-registered via WhatsApp on {registration_date}."]
+
+    # Reason + concern
+    concern_clean = (concern_note or "").strip()
+    if reason == "current_concern":
+        if concern_clean:
+            parts.append(f"Reports: {concern_clean}.")
+        else:
+            parts.append("Reports a current health concern (details to confirm at intake).")
+    elif reason == "follow_up":
+        if concern_clean:
+            parts.append(f"Follow-up care needed: {concern_clean}.")
+        else:
+            parts.append("Follow-up care needed (details to confirm at intake).")
+    elif reason == "new_primary":
+        parts.append("Looking for a new primary clinic — switching providers.")
+    elif reason == "wellness":
+        parts.append("Reached out for routine wellness/checkup.")
+    elif reason == "other":
+        if concern_clean:
+            parts.append(f"Other reason: {concern_clean}.")
+        else:
+            parts.append("Reached out for an unspecified reason.")
+
+    # Insurance
+    provider_clean = (insurance_provider or "").strip()
+    if insurance_status == "has_provider" and provider_clean:
+        parts.append(f"Has {provider_clean} insurance.")
+    elif insurance_status == "has_insurance_unknown_provider":
+        parts.append("Has insurance but doesn't know plan details — needs verification.")
+    elif insurance_status == "self_pay":
+        parts.append("Self-pay (no insurance on file).")
+    # If unknown or missing, no insurance line
+
+    # Closer recommendation tailored to context
+    if reason in ("current_concern", "follow_up"):
+        parts.append("Recommend prompt GP follow-up to assess.")
+    elif reason == "new_primary":
+        parts.append("Recommend GP intro visit once insurance is verified.")
+    elif reason == "wellness":
+        parts.append("Recommend routine wellness visit at patient's convenience.")
+
+    return " ".join(parts)
+
+
 @app.post("/patient/register")
 async def register_new_patient(
     national_id: str = Body(...),
@@ -1235,14 +1309,23 @@ async def register_new_patient(
     phone: str = Body(...),
     full_name_en: Optional[str] = Body(None),
     full_name_ar: Optional[str] = Body(None),
+    registration_reason: Optional[str] = Body(None),
+    registration_concern_note: Optional[str] = Body(None),
+    registration_insurance_provider: Optional[str] = Body(None),
+    registration_insurance_status: Optional[str] = Body(None),
 ):
     """
     Register a new patient via the WhatsApp agent.
-    Creates a patient row with status 'Pending Verification'. A staff
+    Creates a patient row with status 'Pending Verification' and composes a
+    staff-facing intake_notes summary from the registration context. A staff
     member follows up within 1 business day to verify and finalize.
-    
+
     Required: national_id (10 digits, starts with 1=Saudi or 2=Iqama),
               email, phone, and at least one of full_name_en / full_name_ar.
+
+    Optional (recommended for richer intake): registration_reason,
+              registration_concern_note, registration_insurance_provider,
+              registration_insurance_status.
     """
 
     # === Validation ===
@@ -1292,6 +1375,24 @@ async def register_new_patient(
             detail="Phone number is required"
         )
 
+    # Optional enum validation
+    reason = (registration_reason or "").strip().lower() or None
+    if reason and reason not in _REGISTRATION_REASONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"registration_reason must be one of: {sorted(_REGISTRATION_REASONS)}"
+        )
+
+    insurance_status = (registration_insurance_status or "").strip().lower() or None
+    if insurance_status and insurance_status not in _INSURANCE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"registration_insurance_status must be one of: {sorted(_INSURANCE_STATUSES)}"
+        )
+
+    concern_note = (registration_concern_note or "").strip() or None
+    insurance_provider = (registration_insurance_provider or "").strip() or None
+
     # === Duplicate check by national_id ===
 
     existing = await sb_get_one("patients", {"national_id": f"eq.{nid}"})
@@ -1319,9 +1420,25 @@ async def register_new_patient(
     # === Preferred language: prefer AR if AR name was given, else EN ===
     preferred_language = "Arabic" if name_ar else "English"
 
+    # === Compose intake_notes ===
+    today_iso = date.today().isoformat()
+    # Friendly date format for the notes (e.g. "June 2, 2026")
+    try:
+        date_display = date.today().strftime("%B %-d, %Y")
+    except ValueError:
+        # Windows fallback (just in case)
+        date_display = date.today().strftime("%B %d, %Y").replace(" 0", " ")
+
+    intake_notes = _compose_intake_notes(
+        registration_date=date_display,
+        reason=reason,
+        concern_note=concern_note,
+        insurance_status=insurance_status,
+        insurance_provider=insurance_provider,
+    )
+
     # === Insert ===
 
-    today_iso = date.today().isoformat()
     row = {
         "patient_id": new_patient_id,
         "national_id": nid,
@@ -1336,6 +1453,11 @@ async def register_new_patient(
         "allergies": [],
         "active_conditions_en": [],
         "active_conditions_ar": [],
+        "registration_reason": reason,
+        "registration_concern_note": concern_note,
+        "registration_insurance_provider": insurance_provider,
+        "registration_insurance_status": insurance_status,
+        "intake_notes": intake_notes,
         "demo_notes": "Self-registered via WhatsApp agent",
     }
 
@@ -1346,11 +1468,19 @@ async def register_new_patient(
     # === Log to agent_actions ===
 
     display_name = name_en or name_ar
+    reason_label = (reason or "unspecified").replace("_", " ")
     await log_agent_action(
         new_patient_id,
         "New Patient Registration",
-        f"New patient registered via WhatsApp: {display_name} ({id_type} ID)",
-        {"national_id_last4": nid[-4:], "id_type": id_type, "email": em, "phone": ph},
+        f"New patient registered via WhatsApp: {display_name} ({id_type} ID, reason: {reason_label})",
+        {
+            "national_id_last4": nid[-4:],
+            "id_type": id_type,
+            "email": em,
+            "phone": ph,
+            "registration_reason": reason,
+            "registration_insurance_status": insurance_status,
+        },
     )
 
     return {
@@ -1360,8 +1490,12 @@ async def register_new_patient(
         "id_type": id_type,
         "full_name_en": name_en or None,
         "full_name_ar": name_ar or None,
+        "registration_reason": reason,
+        "registration_insurance_status": insurance_status,
+        "intake_notes": intake_notes,
         "message": f"Registered as {new_patient_id}. A team member will reach out within 1 business day to verify and finalize.",
     }
+
 
 
 # ============================================================
