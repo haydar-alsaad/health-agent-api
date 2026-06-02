@@ -1212,6 +1212,145 @@ async def release_lab_result(
 
 
 # ============================================================
+# WRITE: /patient/register
+# ============================================================
+@app.post("/patient/register")
+async def register_new_patient(
+    national_id: str = Body(...),
+    email: str = Body(...),
+    phone: str = Body(...),
+    full_name_en: Optional[str] = Body(None),
+    full_name_ar: Optional[str] = Body(None),
+):
+    """
+    Register a new patient via the WhatsApp agent.
+    Creates a patient row with status 'Pending Verification'. A staff
+    member follows up within 1 business day to verify and finalize.
+    
+    Required: national_id (10 digits, starts with 1=Saudi or 2=Iqama),
+              email, phone, and at least one of full_name_en / full_name_ar.
+    """
+
+    # === Validation ===
+
+    # National ID: exactly 10 digits, all numeric
+    nid = (national_id or "").strip()
+    if not nid.isdigit() or len(nid) != 10:
+        raise HTTPException(
+            status_code=400,
+            detail="National ID must be exactly 10 digits"
+        )
+
+    # First digit determines id_type
+    first_digit = nid[0]
+    if first_digit == "1":
+        id_type = "Saudi"
+    elif first_digit == "2":
+        id_type = "Iqama"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="National ID must start with 1 (Saudi National ID) or 2 (Iqama)"
+        )
+
+    # At least one name
+    name_en = (full_name_en or "").strip()
+    name_ar = (full_name_ar or "").strip()
+    if not name_en and not name_ar:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of full_name_en or full_name_ar is required"
+        )
+
+    # Basic email format
+    em = (email or "").strip()
+    if "@" not in em or "." not in em.split("@")[-1]:
+        raise HTTPException(
+            status_code=400,
+            detail="A valid email address is required"
+        )
+
+    # Phone
+    ph = (phone or "").strip()
+    if not ph:
+        raise HTTPException(
+            status_code=400,
+            detail="Phone number is required"
+        )
+
+    # === Duplicate check by national_id ===
+
+    existing = await sb_get_one("patients", {"national_id": f"eq.{nid}"})
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A patient with this National ID is already registered (Patient ID: {existing.get('patient_id')})"
+        )
+
+    # === Generate next sequential patient_id ===
+
+    all_patients = await sb_get("patients", {"select": "patient_id"})
+    max_num = 0
+    for p in all_patients:
+        pid = p.get("patient_id", "")
+        if pid.startswith("PAT-"):
+            try:
+                n = int(pid.split("-")[1])
+                if n > max_num:
+                    max_num = n
+            except (ValueError, IndexError):
+                pass
+    new_patient_id = f"PAT-{max_num + 1:03d}"
+
+    # === Preferred language: prefer AR if AR name was given, else EN ===
+    preferred_language = "Arabic" if name_ar else "English"
+
+    # === Insert ===
+
+    today_iso = date.today().isoformat()
+    row = {
+        "patient_id": new_patient_id,
+        "national_id": nid,
+        "id_type": id_type,
+        "full_name_en": name_en or None,
+        "full_name_ar": name_ar or None,
+        "email": em,
+        "phone": ph,
+        "preferred_language": preferred_language,
+        "patient_status": "Pending Verification",
+        "registered_since": today_iso,
+        "allergies": [],
+        "active_conditions_en": [],
+        "active_conditions_ar": [],
+        "demo_notes": "Self-registered via WhatsApp agent",
+    }
+
+    result = await sb_insert("patients", row)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to register patient")
+
+    # === Log to agent_actions ===
+
+    display_name = name_en or name_ar
+    await log_agent_action(
+        new_patient_id,
+        "New Patient Registration",
+        f"New patient registered via WhatsApp: {display_name} ({id_type} ID)",
+        {"national_id_last4": nid[-4:], "id_type": id_type, "email": em, "phone": ph},
+    )
+
+    return {
+        "ok": True,
+        "patient_id": new_patient_id,
+        "patient_status": "Pending Verification",
+        "id_type": id_type,
+        "full_name_en": name_en or None,
+        "full_name_ar": name_ar or None,
+        "message": f"Registered as {new_patient_id}. A team member will reach out within 1 business day to verify and finalize.",
+    }
+
+
+# ============================================================
 # Dev entrypoint
 # ============================================================
 if __name__ == "__main__":
