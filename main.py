@@ -489,23 +489,15 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Quick health check + data counts (used by cron-job.org for warming)."""
+    """Quick health check (used by cron-job.org for warming)."""
     if not (SUPABASE_URL and SUPABASE_KEY):
         return {"status": "degraded", "reason": "Supabase env not configured"}
-    counts = {}
-    tables = ["patients", "doctors", "clinics", "appointments", "lab_results",
-              "prescriptions", "invoices"]
-    results = await asyncio.gather(*[
-        sb_get(t, {"select": "count", "head": "true"}) for t in tables
-    ], return_exceptions=True)
-    for t, r in zip(tables, results):
-        if isinstance(r, Exception):
-            counts[t] = "error"
-        else:
-            # Supabase head=true returns count in Content-Range header normally;
-            # without that we approximate by limit:1 select. Fall through to len.
-            counts[t] = len(r) if isinstance(r, list) else "?"
-    return {"status": "ok", "counts": counts}
+    # Lightweight ping — just confirm Supabase is reachable on one table.
+    try:
+        await sb_get("patients", {"select": "patient_id", "limit": "1"})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "degraded", "reason": str(e)[:200]}
 
 
 # ============================================================
@@ -670,21 +662,43 @@ async def get_doctor(
     specialty: Optional[str] = Query(None),
     clinic_id: Optional[str] = Query(None),
 ):
-    """Look up doctor info."""
-    params = {"order": "full_name_en.asc"}
-    if doctor_id:
-        params["doctor_id"] = f"eq.{doctor_id}"
-    elif name:
-        params["or"] = f"(full_name_en.ilike.*{name}*,full_name_ar.ilike.*{name}*)"
-    elif specialty:
-        params["specialty_en"] = f"ilike.*{specialty}*"
-    elif clinic_id:
-        params["primary_clinic_id"] = f"eq.{clinic_id}"
-    else:
-        raise HTTPException(status_code=400, detail="Provide doctor_id, name, specialty, or clinic_id")
+    """
+    Look up doctor info. Robust to the agent passing multiple parameters
+    (e.g. doctor_id + name): if the primary filter returns nothing, falls
+    back through the remaining provided filters before giving up.
+    """
+    if not any([doctor_id, name, specialty, clinic_id]):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one of: doctor_id, name, specialty, clinic_id"
+        )
 
-    doctors = await sb_get("doctors", params)
-    return {"doctors": doctors, "count": len(doctors)}
+    # Try filters in priority order. If a filter returns results, return them.
+    # If empty, fall through to the next provided filter.
+    attempts = []
+
+    if doctor_id:
+        attempts.append(("doctor_id", {"doctor_id": f"eq.{doctor_id}", "order": "full_name_en.asc"}))
+    if name:
+        attempts.append(("name", {
+            "or": f"(full_name_en.ilike.*{name}*,full_name_ar.ilike.*{name}*)",
+            "order": "full_name_en.asc",
+        }))
+    if specialty:
+        attempts.append(("specialty", {"specialty_en": f"ilike.*{specialty}*", "order": "full_name_en.asc"}))
+    if clinic_id:
+        attempts.append(("clinic_id", {"primary_clinic_id": f"eq.{clinic_id}", "order": "full_name_en.asc"}))
+
+    last_filter = None
+    for filter_name, params in attempts:
+        last_filter = filter_name
+        doctors = await sb_get("doctors", params)
+        if doctors:
+            return {"doctors": doctors, "count": len(doctors), "matched_by": filter_name}
+
+    # All provided filters returned empty
+    return {"doctors": [], "count": 0, "matched_by": None,
+            "note": f"No doctor matched the provided filters (tried: {[a[0] for a in attempts]})"}
 
 
 # ============================================================
