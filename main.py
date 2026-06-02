@@ -581,6 +581,19 @@ async def get_patient(
     # on each other, so we batch them with asyncio.gather() to overlap network latency
     # instead of stacking it. On warm Supabase this drops ~800ms-1s vs sequential calls."
     today = date.today().isoformat()
+
+    # PERF INSTRUMENTATION — log per-query timing so we can see which one is slow.
+    # Remove after diagnostic.
+    import time as _time
+    _t0_total = _time.perf_counter()
+
+    async def _timed(name, coro):
+        _t0 = _time.perf_counter()
+        try:
+            return await coro
+        finally:
+            print(f"[PERF] /patient {pid} :: {name}: {(_time.perf_counter() - _t0) * 1000:.0f} ms")
+
     (
         appointments,
         prescriptions,
@@ -594,43 +607,45 @@ async def get_patient(
         refill_reqs,
         preauth_reqs,
     ) = await asyncio.gather(
-        sb_get("appointments", {
+        _timed("appointments", sb_get("appointments", {
             "patient_id": f"eq.{pid}",
             "order": "date.asc,start_time.asc",
-        }),
-        sb_get("prescriptions", {
+        })),
+        _timed("prescriptions", sb_get("prescriptions", {
             "patient_id": f"eq.{pid}",
             "order": "issued_date.desc",
-        }),
-        sb_get("lab_results", {
+        })),
+        _timed("lab_results", sb_get("lab_results", {
             "patient_id": f"eq.{pid}",
             "order": "order_date.desc",
-        }),
-        sb_get("invoices", {
+        })),
+        _timed("invoices", sb_get("invoices", {
             "patient_id": f"eq.{pid}",
             "order": "issue_date.desc",
-        }),
-        sb_get("medical_history", {
+        })),
+        _timed("medical_history", sb_get("medical_history", {
             "patient_id": f"eq.{pid}",
             "order": "event_date.desc",
-        }),
-        get_doctors_cached(),
-        get_clinics_cached(),
-        sb_get_one("insurance_providers", {
+        })),
+        _timed("doctors_cached", get_doctors_cached()),
+        _timed("clinics_cached", get_clinics_cached()),
+        _timed("insurance", sb_get_one("insurance_providers", {
             "provider_id": f"eq.{patient.get('insurance_provider_id', '')}"
-        }) if patient.get("insurance_provider_id") else asyncio.sleep(0, result=None),
-        sb_get_one("doctors", {
+        })) if patient.get("insurance_provider_id") else asyncio.sleep(0, result=None),
+        _timed("primary_doctor", sb_get_one("doctors", {
             "doctor_id": f"eq.{patient.get('primary_care_doctor_id', '')}"
-        }) if patient.get("primary_care_doctor_id") else asyncio.sleep(0, result=None),
-        sb_get("refill_requests", {
+        })) if patient.get("primary_care_doctor_id") else asyncio.sleep(0, result=None),
+        _timed("refill_requests", sb_get("refill_requests", {
             "patient_id": f"eq.{pid}",
             "order": "requested_at.desc",
-        }),
-        sb_get("preauth_requests", {
+        })),
+        _timed("preauth_requests", sb_get("preauth_requests", {
             "patient_id": f"eq.{pid}",
             "order": "requested_at.desc",
-        }),
+        })),
     )
+
+    print(f"[PERF] /patient {pid} :: TOTAL gather: {(_time.perf_counter() - _t0_total) * 1000:.0f} ms")
 
     doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
     clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
