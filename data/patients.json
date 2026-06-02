@@ -1,5 +1,31 @@
 [
   {
+    "Patient ID": "PAT-001",
+    "Full Name (EN)": "Mohammed Al-Shammari",
+    "Full Name (AR)": "محمد الشمري",
+    "Date of Birth": "1990-07-22",
+    "Age": 35,
+    "Gender": "Male",
+    "Phone": "+966501234601",
+    "Email": "m.alshammari@example.com",
+    "Preferred Language": "English",
+    "City (EN)": "Riyadh",
+    "City (AR)": "الرياض",
+    "Address (EN)": "Al-Sahafa District, Riyadh",
+    "Address (AR)": "حي الصحافة، الرياض",
+    "Insurance Provider ID": "INS-002-STANDARD",
+    "Insurance Policy Number": "BUP-STD-19283",
+    "Primary Care Doctor ID": "DR-005",
+    "Allergies": [],
+    "Active Conditions (EN)": [],
+    "Active Conditions (AR)": [],
+    "Emergency Contact Name": "Sara Al-Shammari (sister)",
+    "Emergency Contact Phone": "+966505551101",
+    "Patient Status": "Active",
+    "Registered Since": "2022-09-05",
+    "Demo Notes": "Healthy young adult. Use for: 'I want to book a regular check-up' or 'first time visiting'."
+  },
+  {
     "Patient ID": "PAT-002",
     "Full Name (EN)": "Omar Al-Salem",
     "Full Name (AR)": "عمر السالم",
@@ -32,32 +58,6 @@
     "Patient Status": "Active",
     "Registered Since": "2018-03-12",
     "Demo Notes": "Anchor demo persona for Nebelus Demo 4. Lipid panel released, follow-up booked, outstanding invoice INV-H003."
-  },
-  {
-    "Patient ID": "PAT-001",
-    "Full Name (EN)": "Mohammed Al-Shammari",
-    "Full Name (AR)": "محمد الشمري",
-    "Date of Birth": "1990-07-22",
-    "Age": 35,
-    "Gender": "Male",
-    "Phone": "+966501234601",
-    "Email": "m.alshammari@example.com",
-    "Preferred Language": "English",
-    "City (EN)": "Riyadh",
-    "City (AR)": "الرياض",
-    "Address (EN)": "Al-Sahafa District, Riyadh",
-    "Address (AR)": "حي الصحافة، الرياض",
-    "Insurance Provider ID": "INS-002-STANDARD",
-    "Insurance Policy Number": "BUP-STD-19283",
-    "Primary Care Doctor ID": "DR-005",
-    "Allergies": [],
-    "Active Conditions (EN)": [],
-    "Active Conditions (AR)": [],
-    "Emergency Contact Name": "Sara Al-Shammari (sister)",
-    "Emergency Contact Phone": "+966505551101",
-    "Patient Status": "Active",
-    "Registered Since": "2022-09-05",
-    "Demo Notes": "Healthy young adult. Use for: 'I want to book a regular check-up' or 'first time visiting'."
   },
   {
     "Patient ID": "PAT-003",
@@ -396,7 +396,7 @@
     "Demo Notes": "Asthma patient. Use for: Ventolin refill, 'is my asthma acting up' triage demo."
   },
   {
-    "Patient ID": "PAT-014",
+    "Patient ID": "PAT-013",
     "Full Name (EN)": "Layla Al-Mutairi",
     "Full Name (AR)": "ليلى المطيري",
     "Date of Birth": null,
@@ -429,7 +429,7 @@
     "Demo Notes": "Self-registered via WhatsApp agent — current concern path with auto-booking"
   },
   {
-    "Patient ID": "PAT-015",
+    "Patient ID": "PAT-014",
     "Full Name (EN)": "David Thompson",
     "Full Name (AR)": null,
     "Date of Birth": null,
