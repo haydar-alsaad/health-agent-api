@@ -328,5 +328,23 @@
     "Notes": "Asthma well controlled with current regimen. Spirometry stable. Continue Ventolin PRN.",
     "Follow-up Required": "Yes - 6 months",
     "Created Date": "2026-03-10"
+  },
+  {
+    "Appointment ID": "APT-H111",
+    "Patient ID": "PAT-014",
+    "Doctor ID": "DR-005",
+    "Slot ID": "SLOT-05748",
+    "Clinic ID": "CLN-001",
+    "Date": "2026-06-15",
+    "Day of Week": "Monday",
+    "Start Time": "10:00",
+    "End Time": "10:30",
+    "Type": "New Patient Consultation",
+    "Reason for Visit": "Initial consultation — persistent migraines, 2 weeks duration",
+    "Status": "Scheduled",
+    "Booked By": "Agent",
+    "Created At": "2026-06-01T14:32:00Z",
+    "Cancellation Reason": null,
+    "Notes": "Auto-booked during patient self-registration via WhatsApp"
   }
 ]
