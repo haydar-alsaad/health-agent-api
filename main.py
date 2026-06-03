@@ -1454,9 +1454,18 @@ async def register_new_patient(
 
     existing = await sb_get_one("patients", {"national_id": f"eq.{nid}"})
     if existing:
+        # Structured 409 so the agent can extract patient_id reliably (not parse the message string).
+        # This is the recovery path when T2's send_whatsapp_message hits a transient 500 mid-flow:
+        # the first register_new_patient call succeeded, the confirmation message was lost,
+        # the user retries, and we hit this branch. The agent uses `patient_id` to continue.
         raise HTTPException(
             status_code=409,
-            detail=f"A patient with this National ID is already registered (Patient ID: {existing.get('patient_id')})"
+            detail={
+                "code": "already_registered",
+                "patient_id": existing.get("patient_id"),
+                "patient_status": existing.get("status"),
+                "message": f"A patient with this National ID is already registered (Patient ID: {existing.get('patient_id')})",
+            },
         )
 
     # === Generate next sequential patient_id ===
