@@ -1,17 +1,30 @@
 """
-Al-Noor Healthcare Agent API - v2.0
-
+Al-Noor Healthcare Agent API - v2.1
 Architecture: Supabase-backed via httpx REST + service role key.
+
+CHANGES FROM v2.0:
+  - /slots now uses the in-process reference cache for both filtering
+    (specialty/city → doctor_ids resolved in-memory) and enrichment
+    (doctor/clinic name lookups). Was hitting Supabase twice per call.
+  - /patient.primary_doctor is now resolved from the cached doctors dict
+    instead of a separate sb_get_one. One less Supabase query per lookup.
+  - /appointment/book's audit-log lookup for doctor + clinic names now uses
+    the cache. Minor, but keeps the cache pattern consistent.
+  - /health exposes cache stats so we can verify warmth in production.
+  - Stale comment in /appointment/reschedule fixed.
+
+No API surface changes. All existing agent tool configs continue to work.
+
 Endpoints:
   Read:
-    GET /health                      - status + data load counts
-    GET /patient                     - workhorse: full patient package (parallelized)
+    GET /health                      - status + Supabase reachability + cache stats
+    GET /patient                     - workhorse: full patient package (parallelized, cached)
     GET /doctor                      - doctor info
     GET /slots                       - available appointment slots
     GET /clinic                      - clinic info
     GET /medication                  - medication catalog lookup
     GET /insurance                   - insurance plan lookup
-
+    GET /lab-result/fetch            - fetch pre-generated lab result PDF URL
   Write:
     POST /appointment/book           - book a slot, create appointment
     POST /appointment/cancel         - cancel appointment, release slot
@@ -21,26 +34,26 @@ Endpoints:
     POST /profile/update             - update phone/email/address only
     POST /preauth/request            - create pre-auth request
     POST /lab-result/release         - flip Pending → Released (portal-side)
-
-Lessons from Education applied:
-  - asyncio.gather in /patient for parallel Supabase fetches
-  - Every write inserts an agent_actions audit row
-  - Indexes assumed on filter columns
-  - Auto-warm cron-friendly: /patient?patient_id=PAT-002 is cheap & fast
+    POST /patient/register           - self-registration (Pending Verification)
 """
+
 import asyncio
 import json
 import os
 import sys
 from datetime import date, datetime, timedelta
+from time import monotonic as _monotonic
 from typing import Optional, Any
+
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 
+
 # ============================================================
 # Config
 # ============================================================
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SEED_ON_BOOT = os.environ.get("SEED_ON_BOOT", "true").lower() == "true"
@@ -56,10 +69,12 @@ HEADERS = {
     "Prefer": "return=representation",
 }
 
+
 # ============================================================
 # App
 # ============================================================
-app = FastAPI(title="Al-Noor Health Agent API", version="2.0")
+
+app = FastAPI(title="Al-Noor Health Agent API", version="2.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -98,6 +113,7 @@ async def shutdown():
 # ============================================================
 # Supabase REST helpers
 # ============================================================
+
 async def sb_get(table: str, params: Optional[dict] = None) -> list:
     """GET from Supabase REST. Returns list of rows."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -131,10 +147,9 @@ async def sb_get_one(table: str, params: Optional[dict] = None) -> Optional[dict
 #
 # Per-replica cache (Railway may run multiple). Each replica warms on
 # its first request. Cache lives until process restart or TTL expires.
-from time import monotonic as _monotonic
 
 _REF_CACHE_TTL = 60.0  # seconds
-_reference_cache: dict[str, dict] = {
+_reference_cache: dict = {
     "doctors": {"data": None, "ts": 0.0},
     "clinics": {"data": None, "ts": 0.0},
 }
@@ -161,7 +176,20 @@ async def get_clinics_cached() -> list:
     return c["data"]
 
 
-async def sb_insert(table: str, payload: dict | list) -> Any:
+def _cache_stats() -> dict:
+    """Diagnostic: current cache warmth per table. Exposed via /health."""
+    now = _monotonic()
+    return {
+        table: {
+            "warm": entry["data"] is not None,
+            "row_count": len(entry["data"]) if entry["data"] is not None else 0,
+            "age_seconds": round(now - entry["ts"], 1) if entry["ts"] else None,
+        }
+        for table, entry in _reference_cache.items()
+    }
+
+
+async def sb_insert(table: str, payload) -> Any:
     """INSERT into Supabase. Returns inserted row(s)."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     try:
@@ -209,6 +237,7 @@ async def log_agent_action(
 # ============================================================
 # Data seeding (run once on boot if tables empty)
 # ============================================================
+
 SEED_FILES = [
     # Order matters for foreign keys: independent tables first
     ("insurance_providers", "insurance_providers.json"),
@@ -230,7 +259,6 @@ SEED_FILES = [
 
 def json_to_db_row(table: str, raw: dict) -> dict:
     """Map raw JSON keys (e.g. 'Patient ID') to DB column names ('patient_id')."""
-    # Mapping rules based on schema in Lovable prompt
     mappings = {
         "insurance_providers": {
             "Provider ID": "provider_id",
@@ -506,6 +534,7 @@ async def seed_if_empty():
 # ============================================================
 # Helper: enrich rows with related data
 # ============================================================
+
 async def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> dict:
     """Add doctor + clinic names to an appointment row."""
     d = doctors_by_id.get(apt.get("doctor_id"), {})
@@ -526,24 +555,30 @@ async def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict
 # ============================================================
 # Health check
 # ============================================================
+
 @app.get("/")
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "2.0",
+        "version": "2.1",
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_KEY),
     }
 
 
 @app.get("/health")
 async def health():
-    """Quick health check (used by cron-job.org for warming)."""
+    """Quick health check (used by cron-job.org for warming).
+    Also exposes reference_cache warmth for production diagnostics."""
     if not (SUPABASE_URL and SUPABASE_KEY):
         return {"status": "degraded", "reason": "Supabase env not configured"}
     # Lightweight ping — just confirm Supabase is reachable on one table.
     try:
         await sb_get("patients", {"select": "patient_id", "limit": "1"})
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "version": "2.1",
+            "reference_cache": _cache_stats(),
+        }
     except Exception as e:
         return {"status": "degraded", "reason": str(e)[:200]}
 
@@ -551,6 +586,7 @@ async def health():
 # ============================================================
 # READ: /patient (the workhorse — parallelized)
 # ============================================================
+
 @app.get("/patient")
 async def get_patient(
     patient_id: Optional[str] = Query(None),
@@ -559,8 +595,11 @@ async def get_patient(
 ):
     """Returns full patient package: profile, insurance, primary doctor,
     appointments, prescriptions, lab results, invoices, medical history.
+    All sub-fetches run in parallel via asyncio.gather.
 
-    All sub-fetches run in parallel via asyncio.gather."""
+    Reference tables (doctors, clinics) come from an in-process cache.
+    primary_doctor is resolved from the cached doctors dict — no separate
+    Supabase call needed."""
     # Step 1: find the patient
     if patient_id:
         patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
@@ -583,12 +622,11 @@ async def get_patient(
     # an in-process cache (refreshed every 60s) so we skip the Supabase round-trip
     # on the vast majority of warm calls — the tables change rarely.
     #
-    # HTTP/2 enabled on the httpx client lets all 9 Supabase queries multiplex over
-    # one TCP connection instead of queueing past the HTTP/1.1 6-concurrent limit.
+    # HTTP/2 enabled on the httpx client lets all parallel Supabase queries multiplex
+    # over one TCP connection instead of queueing past the HTTP/1.1 6-concurrent limit.
     #
-    # Lessons from Education (main.py line 322): "These calls have no dependencies
-    # on each other, so we batch them with asyncio.gather() to overlap network latency
-    # instead of stacking it. On warm Supabase this drops ~800ms-1s vs sequential calls."
+    # primary_doctor is NOT fetched separately — we look it up from all_doctors after
+    # the gather, saving one query per patient lookup.
     today = date.today().isoformat()
     (
         appointments,
@@ -599,7 +637,6 @@ async def get_patient(
         all_doctors,
         all_clinics,
         insurance,
-        primary_doctor,
         refill_reqs,
         preauth_reqs,
     ) = await asyncio.gather(
@@ -628,9 +665,6 @@ async def get_patient(
         sb_get_one("insurance_providers", {
             "provider_id": f"eq.{patient.get('insurance_provider_id', '')}"
         }) if patient.get("insurance_provider_id") else asyncio.sleep(0, result=None),
-        sb_get_one("doctors", {
-            "doctor_id": f"eq.{patient.get('primary_care_doctor_id', '')}"
-        }) if patient.get("primary_care_doctor_id") else asyncio.sleep(0, result=None),
         sb_get("refill_requests", {
             "patient_id": f"eq.{pid}",
             "order": "requested_at.desc",
@@ -644,6 +678,10 @@ async def get_patient(
     doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
     clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
 
+    # Resolve primary_doctor from the cached doctors dict — no separate Supabase call.
+    primary_doctor_id = patient.get("primary_care_doctor_id")
+    primary_doctor = doctors_by_id.get(primary_doctor_id) if primary_doctor_id else None
+
     # Step 3: enrich + segment
     upcoming = []
     past = []
@@ -653,6 +691,7 @@ async def get_patient(
             upcoming.append(enriched)
         else:
             past.append(enriched)
+
     # past sorted reverse-chrono; keep most recent 5
     past = sorted(past, key=lambda x: x.get("date", ""), reverse=True)[:5]
 
@@ -712,6 +751,7 @@ async def get_patient(
 # ============================================================
 # READ: /doctor
 # ============================================================
+
 @app.get("/doctor")
 async def get_doctor(
     doctor_id: Optional[str] = Query(None),
@@ -733,7 +773,6 @@ async def get_doctor(
     # Try filters in priority order. If a filter returns results, return them.
     # If empty, fall through to the next provided filter.
     attempts = []
-
     if doctor_id:
         attempts.append(("doctor_id", {"doctor_id": f"eq.{doctor_id}", "order": "full_name_en.asc"}))
     if name:
@@ -761,6 +800,7 @@ async def get_doctor(
 # ============================================================
 # READ: /slots
 # ============================================================
+
 @app.get("/slots")
 async def get_slots(
     doctor_id: Optional[str] = Query(None),
@@ -772,28 +812,44 @@ async def get_slots(
     near_window_days: int = Query(7),
     limit: int = Query(5),
 ):
-    """Available appointment slots, sorted by earliest first (or by proximity to near_date)."""
+    """Available appointment slots, sorted by earliest first (or by proximity to near_date).
+
+    Uses the in-process reference cache for both filter resolution (specialty/city
+    → doctor_ids) and enrichment (doctor/clinic name attachment). On warm cache
+    this is 1 Supabase query total (just the slots table)."""
     today = date.today().isoformat()
 
-    # If specialty or city given, first resolve to doctor_ids
-    doctor_filter_ids: Optional[list[str]] = None
+    # Load reference tables from cache — used for filtering AND enrichment.
+    all_doctors = await get_doctors_cached()
+    all_clinics = await get_clinics_cached()
+    doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
+    clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
+
+    # If specialty or city given, resolve to doctor_ids in memory
+    doctor_filter_ids: Optional[list] = None
     if specialty or city:
-        d_params = {"select": "doctor_id,primary_clinic_id"}
+        candidates = all_doctors
         if specialty:
-            d_params["specialty_en"] = f"ilike.*{specialty}*"
-        candidate_docs = await sb_get("doctors", d_params)
+            specialty_lower = specialty.lower()
+            candidates = [
+                d for d in candidates
+                if specialty_lower in (d.get("specialty_en") or "").lower()
+            ]
         if city:
-            # Need clinic city — fetch clinics in that city
-            clinics_in_city = await sb_get("clinics", {
-                "city_en": f"ilike.*{city}*",
-                "select": "clinic_id",
-            })
-            city_clinic_ids = {c["clinic_id"] for c in clinics_in_city}
-            candidate_docs = [d for d in candidate_docs if d.get("primary_clinic_id") in city_clinic_ids]
-        doctor_filter_ids = [d["doctor_id"] for d in candidate_docs]
+            city_lower = city.lower()
+            city_clinic_ids = {
+                c["clinic_id"] for c in all_clinics
+                if city_lower in (c.get("city_en") or "").lower()
+            }
+            candidates = [
+                d for d in candidates
+                if d.get("primary_clinic_id") in city_clinic_ids
+            ]
+        doctor_filter_ids = [d["doctor_id"] for d in candidates]
         if not doctor_filter_ids:
             return {"slots": [], "count": 0}
 
+    # Now query the slots table itself (this can't be cached — changes with bookings)
     params = {
         "status": "eq.Open",
         "select": "*",
@@ -806,7 +862,6 @@ async def get_slots(
         params["doctor_id"] = f"in.({','.join(doctor_filter_ids)})"
     if clinic_id:
         params["clinic_id"] = f"eq.{clinic_id}"
-
     if from_date:
         params["date"] = f"gte.{from_date}"
     else:
@@ -826,11 +881,7 @@ async def get_slots(
 
     slots = await sb_get("doctor_availability", params)
 
-    # Enrich with doctor + clinic names
-    all_doctors = await sb_get("doctors", {})
-    all_clinics = await sb_get("clinics", {})
-    doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
-    clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
+    # Enrich with doctor + clinic names from the cache (no extra Supabase calls)
     enriched = []
     for s in slots:
         d = doctors_by_id.get(s["doctor_id"], {})
@@ -852,6 +903,7 @@ async def get_slots(
 # ============================================================
 # READ: /clinic
 # ============================================================
+
 @app.get("/clinic")
 async def get_clinic(
     clinic_id: Optional[str] = Query(None),
@@ -869,6 +921,7 @@ async def get_clinic(
 # ============================================================
 # READ: /medication
 # ============================================================
+
 @app.get("/medication")
 async def get_medication(
     medication_id: Optional[str] = Query(None),
@@ -888,6 +941,7 @@ async def get_medication(
 # ============================================================
 # READ: /insurance
 # ============================================================
+
 @app.get("/insurance")
 async def get_insurance(provider_id: Optional[str] = Query(None)):
     if not provider_id:
@@ -901,6 +955,7 @@ async def get_insurance(provider_id: Optional[str] = Query(None)):
 # ============================================================
 # READ: /lab-result/fetch
 # ============================================================
+
 @app.get("/lab-result/fetch")
 async def fetch_lab_document(lab_result_id: str = Query(...)):
     """
@@ -912,7 +967,6 @@ async def fetch_lab_document(lab_result_id: str = Query(...)):
     lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"})
     if not lab:
         raise HTTPException(status_code=404, detail="Lab result not found")
-
     if lab.get("status") != "Released":
         raise HTTPException(
             status_code=409,
@@ -944,6 +998,7 @@ async def fetch_lab_document(lab_result_id: str = Query(...)):
 # ============================================================
 # WRITE: /appointment/book
 # ============================================================
+
 @app.post("/appointment/book")
 async def book_appointment(
     patient_id: str = Body(...),
@@ -956,7 +1011,6 @@ async def book_appointment(
     patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-
     slot = await sb_get_one("doctor_availability", {"slot_id": f"eq.{slot_id}"})
     if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
@@ -999,9 +1053,14 @@ async def book_appointment(
     }
     await sb_insert("appointments", apt_row)
 
-    # 5. Log agent action
-    doctor = await sb_get_one("doctors", {"doctor_id": f"eq.{slot['doctor_id']}"})
-    clinic = await sb_get_one("clinics", {"clinic_id": f"eq.{slot['clinic_id']}"})
+    # 5. Log agent action — use the cached doctors/clinics for name lookup
+    # (no extra Supabase calls on the write path)
+    all_doctors = await get_doctors_cached()
+    all_clinics = await get_clinics_cached()
+    doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
+    clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
+    doctor = doctors_by_id.get(slot["doctor_id"])
+    clinic = clinics_by_id.get(slot["clinic_id"])
     desc = (
         f"Booked {slot['date']} {slot['start_time']} with "
         f"{doctor.get('full_name_en') if doctor else slot['doctor_id']} "
@@ -1020,6 +1079,7 @@ async def book_appointment(
 # ============================================================
 # WRITE: /appointment/cancel
 # ============================================================
+
 @app.post("/appointment/cancel")
 async def cancel_appointment(
     appointment_id: str = Body(...),
@@ -1060,20 +1120,21 @@ async def cancel_appointment(
 # ============================================================
 # WRITE: /appointment/reschedule
 # ============================================================
+
 @app.post("/appointment/reschedule")
 async def reschedule_appointment(
     appointment_id: str = Body(...),
     new_slot_id: str = Body(...),
     reason: Optional[str] = Body(None),
 ):
-    # 1. cancel old
+    # 1. look up existing appointment
     apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"})
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
     patient_id = apt["patient_id"]
     apt_type = apt.get("type", "Follow-up")
 
-    # 2. book new
+    # 2. book new (do this first — if it fails, we haven't cancelled anything)
     book_result = await book_appointment(
         patient_id=patient_id,
         slot_id=new_slot_id,
@@ -1090,6 +1151,7 @@ async def reschedule_appointment(
 # ============================================================
 # WRITE: /prescription/refill
 # ============================================================
+
 @app.post("/prescription/refill")
 async def refill_prescription(
     prescription_id: str = Body(...),
@@ -1125,6 +1187,7 @@ async def refill_prescription(
             med_name = m.get("name_en") or m.get("Name (EN)")
             found = True
             break
+
     if not found:
         raise HTTPException(status_code=404, detail=f"Medication {medication_id} not in this prescription")
 
@@ -1159,6 +1222,7 @@ async def refill_prescription(
 # ============================================================
 # WRITE: /invoice/payment
 # ============================================================
+
 @app.post("/invoice/payment")
 async def record_payment(
     invoice_id: str = Body(...),
@@ -1197,6 +1261,7 @@ async def record_payment(
 # ============================================================
 # WRITE: /profile/update
 # ============================================================
+
 ALLOWED_PROFILE_FIELDS = {"phone", "email", "address_en", "address_ar", "city_en", "city_ar"}
 
 
@@ -1226,6 +1291,7 @@ async def update_profile(
 # ============================================================
 # WRITE: /preauth/request
 # ============================================================
+
 @app.post("/preauth/request")
 async def request_preauth(
     patient_id: str = Body(...),
@@ -1257,6 +1323,7 @@ async def request_preauth(
 # ============================================================
 # WRITE: /lab-result/release (portal-side, but agent can also trigger)
 # ============================================================
+
 @app.post("/lab-result/release")
 async def release_lab_result(
     lab_result_id: str = Body(...),
@@ -1294,6 +1361,7 @@ _REGISTRATION_REASONS = {
     "wellness",
     "other",
 }
+
 _INSURANCE_STATUSES = {
     "has_provider",
     "has_insurance_unknown_provider",
@@ -1373,20 +1441,18 @@ async def register_new_patient(
 ):
     """
     Register a new patient via the WhatsApp agent.
+
     Creates a patient row with status 'Pending Verification' and composes a
     staff-facing intake_notes summary from the registration context. A staff
     member follows up within 1 business day to verify and finalize.
 
     Required: national_id (10 digits, starts with 1=Saudi or 2=Iqama),
               email, phone, and at least one of full_name_en / full_name_ar.
-
     Optional (recommended for richer intake): registration_reason,
               registration_concern_note, registration_insurance_provider,
               registration_insurance_status.
     """
-
     # === Validation ===
-
     # National ID: exactly 10 digits, all numeric
     nid = (national_id or "").strip()
     if not nid.isdigit() or len(nid) != 10:
@@ -1451,7 +1517,6 @@ async def register_new_patient(
     insurance_provider = (registration_insurance_provider or "").strip() or None
 
     # === Duplicate check by national_id ===
-
     existing = await sb_get_one("patients", {"national_id": f"eq.{nid}"})
     if existing:
         # Structured 409 so the agent can extract patient_id reliably (not parse the message string).
@@ -1469,7 +1534,6 @@ async def register_new_patient(
         )
 
     # === Generate next sequential patient_id ===
-
     all_patients = await sb_get("patients", {"select": "patient_id"})
     max_num = 0
     for p in all_patients:
@@ -1504,7 +1568,6 @@ async def register_new_patient(
     )
 
     # === Insert ===
-
     row = {
         "patient_id": new_patient_id,
         "national_id": nid,
@@ -1532,7 +1595,6 @@ async def register_new_patient(
         raise HTTPException(status_code=500, detail="Failed to register patient")
 
     # === Log to agent_actions ===
-
     display_name = name_en or name_ar
     reason_label = (reason or "unspecified").replace("_", " ")
     await log_agent_action(
@@ -1563,10 +1625,10 @@ async def register_new_patient(
     }
 
 
-
 # ============================================================
 # Dev entrypoint
 # ============================================================
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), reload=True)
