@@ -1,30 +1,36 @@
 """
-Al-Noor Healthcare Agent API - v3.0 (multi-tenant)
-Architecture: Supabase-backed via httpx REST + service role key.
+Al-Noor Healthcare Agent API - v3.1 (multi-tenant, service-account auth)
+Architecture: Supabase-backed via httpx REST, authenticated as a dedicated
+service-account user (NOT the service role key).
 
-CHANGES FROM v2.1 — MULTI-TENANCY:
-  - Every endpoint accepts `caller_phone` (the WhatsApp sender's number from the
-    agent's [User WhatsApp:] metadata). Railway resolves it to an `owner_id` via
-    the `demo_users` table and scopes every per-tenant Supabase query by it.
-  - Falls back to DEFAULT_OWNER_ID when caller_phone is missing or unresolvable,
-    so agents that haven't been updated yet keep working against the shared
-    default demo tenant. Zero-downtime rollout.
-  - sb_get / sb_insert / sb_update / sb_delete take an explicit `owner` argument.
-    If the table is per-tenant and `owner` is None, they raise — failing loudly
-    beats silently returning another tenant's rows.
-  - Phone normalization tolerates a missing "+" and strips spaces/dashes.
-  - reschedule split into _book_impl / _cancel_impl internals so `owner`
-    threads through cleanly.
-  - SEED_ON_BOOT now defaults to FALSE. Baseline seeding is handled by
-    Supabase's clone_baseline_for_user() on signup. The JSON seed path is kept
-    (gated) for bootstrapping a brand-new environment; it writes under
-    DEFAULT_OWNER_ID.
+CHANGES FROM v3.0 — AUTHENTICATION:
+  This project lives on Lovable Cloud, where the Supabase service role key is
+  not available to us. Instead the API signs in as a dedicated auth user
+  (railway-agent@nebelus.ai) that has additive `for all` RLS policies on all 11
+  per-tenant tables, granting it cross-tenant read/write. Every PostgREST
+  request carries that user's access token.
 
-CARRIED FORWARD FROM v2.1:
-  - HTTP/2 on the httpx client
-  - In-process reference cache (doctors, clinics) — these are SHARED tables,
-    so the cache stays global and is NOT per-tenant.
-  - /slots, /patient, /appointment/book use the cache for enrichment.
+  - Sign-in on startup via the password grant; token cached in memory.
+  - Proactive refresh 5 minutes before expiry using the refresh_token grant,
+    falling back to a fresh password grant if the refresh token is rejected.
+  - An asyncio.Lock serialises refreshes so N concurrent requests trigger one
+    token fetch, not N.
+  - Any PostgREST 401/403 forces a re-auth and retries the request ONCE. This
+    covers token revocation, clock skew, and Supabase-side session eviction.
+  - sb_get no longer swallows auth failures. A 401 after retry raises a 502
+    instead of returning [] — an empty list masquerading as "no rows" is what
+    made the original misconfiguration look like a 404 for hours.
+  - /health reports token state (authenticated, seconds until expiry).
+
+  SUPABASE_SERVICE_ROLE_KEY is no longer used. Leave it unset.
+
+CARRIED FORWARD FROM v3.0:
+  - caller_phone → owner_id tenant routing via the demo_users table, with
+    DEFAULT_OWNER_ID as the fallback for unregistered callers.
+  - sb_* helpers take an explicit `owner`; per-tenant tables without one raise
+    rather than silently returning cross-tenant rows.
+  - Phone normalization tolerating a missing "+".
+  - HTTP/2, in-process reference cache for the shared doctors/clinics catalogs.
 
 TENANCY MODEL:
   Per-tenant tables (scoped by owner_id):
@@ -35,31 +41,12 @@ TENANCY MODEL:
     doctors, clinics, pharmacies, medications_catalog, insurance_providers
 
 ENV VARS:
-  SUPABASE_URL                 (required)
-  SUPABASE_SERVICE_ROLE_KEY    (required)
-  DEFAULT_OWNER_ID             (required) UUID of the fallback demo tenant
-  SEED_ON_BOOT                 (optional, default "false")
-
-Endpoints:
-  Read:
-    GET /health                      - status + Supabase reachability + cache stats
-    GET /patient                     - workhorse: full patient package
-    GET /doctor                      - doctor info (shared catalog)
-    GET /slots                       - available appointment slots (per-tenant)
-    GET /clinic                      - clinic info (shared catalog)
-    GET /medication                  - medication catalog lookup (shared)
-    GET /insurance                   - insurance plan lookup (shared)
-    GET /lab-result/fetch            - fetch pre-generated lab result PDF URL
-  Write:
-    POST /appointment/book           - book a slot, create appointment
-    POST /appointment/cancel         - cancel appointment, release slot
-    POST /appointment/reschedule     - book new + cancel old
-    POST /prescription/refill        - create refill request, decrement refills
-    POST /invoice/payment            - record payment, mark invoice Paid
-    POST /profile/update             - update phone/email/address only
-    POST /preauth/request            - create pre-auth request
-    POST /lab-result/release         - flip Pending → Released
-    POST /patient/register           - self-registration (Pending Verification)
+  SUPABASE_URL               (required)  e.g. https://xxxx.supabase.co
+  SUPABASE_ANON_KEY          (required)  publishable/anon key — public, safe
+  SUPABASE_SERVICE_EMAIL     (required)  railway-agent@nebelus.ai
+  SUPABASE_SERVICE_PASSWORD  (required)  that account's password — SECRET
+  DEFAULT_OWNER_ID           (required)  UUID of the fallback demo tenant
+  SEED_ON_BOOT               (optional, default "false")
 """
 
 import asyncio
@@ -81,25 +68,162 @@ from fastapi.middleware.cors import CORSMiddleware
 # ============================================================
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_EMAIL = os.environ.get("SUPABASE_SERVICE_EMAIL", "")
+SUPABASE_SERVICE_PASSWORD = os.environ.get("SUPABASE_SERVICE_PASSWORD", "")
 DEFAULT_OWNER_ID = os.environ.get("DEFAULT_OWNER_ID", "")
 SEED_ON_BOOT = os.environ.get("SEED_ON_BOOT", "false").lower() == "true"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("WARNING: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. API will fail.")
-if not DEFAULT_OWNER_ID:
-    print(
-        "WARNING: DEFAULT_OWNER_ID not set. Requests without a resolvable "
-        "caller_phone will fail. Set this to the UUID of the fallback demo tenant."
-    )
+_missing = [
+    name for name, val in [
+        ("SUPABASE_URL", SUPABASE_URL),
+        ("SUPABASE_ANON_KEY", SUPABASE_ANON_KEY),
+        ("SUPABASE_SERVICE_EMAIL", SUPABASE_SERVICE_EMAIL),
+        ("SUPABASE_SERVICE_PASSWORD", SUPABASE_SERVICE_PASSWORD),
+        ("DEFAULT_OWNER_ID", DEFAULT_OWNER_ID),
+    ] if not val
+]
+if _missing:
+    print(f"WARNING: missing required env vars: {', '.join(_missing)}. API will fail.")
 
-HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation",
+
+# ============================================================
+# Supabase auth — service-account token management
+# ============================================================
+# This project is on Lovable Cloud, so the service role key isn't available.
+# Instead we sign in as a dedicated auth user that carries additive `for all`
+# RLS policies on every per-tenant table, giving it cross-tenant access.
+#
+# Token lifecycle:
+#   startup            -> password grant, cache access + refresh token
+#   < 5 min to expiry  -> refresh_token grant (cheap)
+#   refresh rejected   -> fall back to a fresh password grant
+#   PostgREST 401/403  -> force re-auth, retry the request once
+#
+# A single asyncio.Lock serialises all of the above so N concurrent requests
+# trigger one token fetch rather than N.
+
+_TOKEN_REFRESH_MARGIN = 300.0  # refresh when < 5 min of life remains
+
+_auth_state: dict = {
+    "access_token": None,
+    "refresh_token": None,
+    "expires_at": 0.0,       # monotonic deadline
+    "last_error": None,
+    "signed_in_at": None,    # wall-clock ISO, for diagnostics
 }
+_auth_lock: Optional[asyncio.Lock] = None  # created in startup (needs a loop)
+
+
+async def _auth_request(payload: dict, grant_type: str) -> dict:
+    """POST to Supabase's token endpoint. Raises on failure."""
+    url = f"{SUPABASE_URL}/auth/v1/token?grant_type={grant_type}"
+    r = await http_client.post(
+        url,
+        headers={
+            "apikey": SUPABASE_ANON_KEY,
+            "Content-Type": "application/json",
+        },
+        json=payload,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+async def _sign_in_password() -> None:
+    """Full sign-in with email + password. Replaces any cached token."""
+    data = await _auth_request(
+        {"email": SUPABASE_SERVICE_EMAIL, "password": SUPABASE_SERVICE_PASSWORD},
+        "password",
+    )
+    _store_token(data)
+    print(f"[auth] signed in as {SUPABASE_SERVICE_EMAIL}")
+
+
+async def _sign_in_refresh() -> None:
+    """Renew using the refresh token. Cheaper than a password grant."""
+    rt = _auth_state.get("refresh_token")
+    if not rt:
+        raise RuntimeError("no refresh token cached")
+    data = await _auth_request({"refresh_token": rt}, "refresh_token")
+    _store_token(data)
+    print("[auth] token refreshed")
+
+
+def _store_token(data: dict) -> None:
+    expires_in = float(data.get("expires_in") or 3600)
+    _auth_state["access_token"] = data.get("access_token")
+    _auth_state["refresh_token"] = data.get("refresh_token") or _auth_state.get("refresh_token")
+    _auth_state["expires_at"] = _monotonic() + expires_in
+    _auth_state["last_error"] = None
+    _auth_state["signed_in_at"] = datetime.now().astimezone().isoformat()
+
+
+async def ensure_token(force: bool = False) -> str:
+    """Return a valid access token, refreshing or re-signing in as needed.
+
+    `force=True` discards the cached token — used after a PostgREST 401.
+    Serialised by _auth_lock so concurrent callers share one fetch.
+    """
+    global _auth_lock
+    if _auth_lock is None:
+        _auth_lock = asyncio.Lock()
+
+    tok = _auth_state.get("access_token")
+    fresh_enough = tok and (_auth_state["expires_at"] - _monotonic()) > _TOKEN_REFRESH_MARGIN
+    if fresh_enough and not force:
+        return tok
+
+    async with _auth_lock:
+        # Re-check inside the lock: another coroutine may have just refreshed.
+        tok = _auth_state.get("access_token")
+        fresh_enough = tok and (_auth_state["expires_at"] - _monotonic()) > _TOKEN_REFRESH_MARGIN
+        if fresh_enough and not force:
+            return tok
+
+        try:
+            if force:
+                await _sign_in_password()
+            else:
+                try:
+                    await _sign_in_refresh()
+                except Exception:
+                    await _sign_in_password()
+        except Exception as e:
+            _auth_state["last_error"] = str(e)[:300]
+            print(f"[auth] sign-in FAILED: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail="Database authentication failed — check service account credentials",
+            )
+
+        return _auth_state["access_token"]
+
+
+async def sb_headers(extra: Optional[dict] = None) -> dict:
+    """Build request headers with a currently-valid access token."""
+    token = await ensure_token()
+    h = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    if extra:
+        h.update(extra)
+    return h
+
+
+def _auth_stats() -> dict:
+    """Diagnostic: token state, exposed via /health. Never leaks the token."""
+    exp = _auth_state.get("expires_at") or 0
+    return {
+        "authenticated": bool(_auth_state.get("access_token")),
+        "expires_in_seconds": round(exp - _monotonic(), 1) if exp else None,
+        "signed_in_at": _auth_state.get("signed_in_at"),
+        "last_error": _auth_state.get("last_error"),
+    }
 
 
 # ============================================================
@@ -130,7 +254,7 @@ TENANT_TABLES = {
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="3.0")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -155,6 +279,16 @@ async def startup():
         timeout=30.0,
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
     )
+
+    # Sign in as the service account up front so the first real request doesn't
+    # pay for it. Don't crash the process on failure — /health will report the
+    # problem and every request retries, so a transient Supabase blip at boot
+    # doesn't take the service down permanently.
+    try:
+        await ensure_token(force=True)
+    except Exception as e:
+        print(f"[auth] startup sign-in failed (will retry on first request): {e}")
+
     if SEED_ON_BOOT:
         await seed_if_empty()
 
@@ -249,17 +383,53 @@ def _tenant_cache_stats() -> dict:
 # Supabase REST helpers (tenant-aware)
 # ============================================================
 
-async def _sb_raw_get(table: str, params: Optional[dict] = None) -> list:
-    """Unscoped GET. ONLY for non-tenant tables like demo_users.
-    Do not use for anything in TENANT_TABLES."""
+AUTH_FAIL_CODES = (401, 403)
+
+
+async def _sb_request(method: str, table: str, *, params=None, json_body=None, extra_headers=None):
+    """Execute one PostgREST call with a valid token, retrying once on 401/403.
+
+    A 401 here means the token expired, was revoked, or the session was evicted
+    server-side. Re-authenticating and retrying is the correct response — the
+    request itself is fine. If it fails a second time, the credentials or the
+    RLS policies are genuinely wrong and we surface that rather than hiding it.
+    """
     url = f"{SUPABASE_URL}/rest/v1/{table}"
-    try:
-        r = await http_client.get(url, headers=HEADERS, params=params or {})
+
+    for attempt in (1, 2):
+        headers = await sb_headers(extra_headers)
+        r = await http_client.request(
+            method, url, headers=headers, params=params or {}, json=json_body
+        )
+        if r.status_code in AUTH_FAIL_CODES and attempt == 1:
+            print(f"[auth] {r.status_code} on {method} {table} — re-authenticating and retrying")
+            await ensure_token(force=True)
+            continue
         r.raise_for_status()
         return r.json()
+
+
+async def _sb_raw_get(table: str, params: Optional[dict] = None) -> list:
+    """Unscoped GET. ONLY for non-tenant tables like demo_users.
+    Do not use for anything in TENANT_TABLES.
+
+    Auth failures are NOT swallowed. Returning [] on a 401 is what made a
+    misconfigured key look like "patient not found" instead of a broken
+    deployment — an empty list is a legitimate answer, a 401 never is.
+    """
+    try:
+        return await _sb_request("GET", table, params=params or {})
     except httpx.HTTPStatusError as e:
-        print(f"sb_get error {table}: {e.response.status_code} {e.response.text[:200]}")
+        code = e.response.status_code
+        print(f"sb_get error {table}: {code} {e.response.text[:200]}")
+        if code in AUTH_FAIL_CODES:
+            raise HTTPException(
+                status_code=502,
+                detail="Database authentication failed — service account cannot read this table",
+            )
         return []
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"sb_get exception {table}: {e}")
         return []
@@ -308,11 +478,8 @@ async def sb_insert(table: str, payload, owner: Optional[str] = None) -> Any:
         else:
             payload = {**payload, "owner_id": owner}
 
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
     try:
-        r = await http_client.post(url, headers=HEADERS, json=payload)
-        r.raise_for_status()
-        return r.json()
+        return await _sb_request("POST", table, json_body=payload)
     except httpx.HTTPStatusError as e:
         print(f"sb_insert error {table}: {e.response.status_code} {e.response.text[:300]}")
         raise HTTPException(status_code=500, detail=f"Insert to {table} failed: {e.response.text[:200]}")
@@ -321,11 +488,8 @@ async def sb_insert(table: str, payload, owner: Optional[str] = None) -> Any:
 async def sb_update(table: str, params: dict, payload: dict, owner: Optional[str] = None) -> Any:
     """UPDATE rows matching params, scoped to the tenant for per-tenant tables."""
     scoped = _scope_params(table, params, owner)
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
     try:
-        r = await http_client.patch(url, headers=HEADERS, params=scoped, json=payload)
-        r.raise_for_status()
-        return r.json()
+        return await _sb_request("PATCH", table, params=scoped, json_body=payload)
     except httpx.HTTPStatusError as e:
         print(f"sb_update error {table}: {e.response.status_code} {e.response.text[:300]}")
         raise HTTPException(status_code=500, detail=f"Update {table} failed: {e.response.text[:200]}")
@@ -740,9 +904,11 @@ def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> d
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "3.0",
+        "version": "3.1",
         "multi_tenant": True,
-        "supabase_configured": bool(SUPABASE_URL and SUPABASE_KEY),
+        "auth_mode": "service_account",
+        "supabase_configured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
+        "service_account_configured": bool(SUPABASE_SERVICE_EMAIL and SUPABASE_SERVICE_PASSWORD),
         "default_owner_configured": bool(DEFAULT_OWNER_ID),
     }
 
@@ -751,22 +917,36 @@ async def root():
 async def health():
     """Quick health check (used by cron-job.org for warming).
     Exposes reference-cache and tenant-cache warmth for production diagnostics."""
-    if not (SUPABASE_URL and SUPABASE_KEY):
-        return {"status": "degraded", "reason": "Supabase env not configured"}
+    if _missing:
+        return {
+            "status": "degraded",
+            "reason": f"missing env vars: {', '.join(_missing)}",
+            "auth": _auth_stats(),
+        }
+
+    checks = {"api": "ok"}
     try:
-        await sb_get(
+        rows = await sb_get(
             "patients", {"select": "patient_id", "limit": "1"}, owner=DEFAULT_OWNER_ID
         )
-        return {
-            "status": "ok",
-            "version": "3.0",
-            "multi_tenant": True,
-            "default_owner_configured": bool(DEFAULT_OWNER_ID),
-            "reference_cache": _cache_stats(),
-            "tenant_cache": _tenant_cache_stats(),
-        }
+        checks["supabase"] = "ok" if rows else "no_data"
     except Exception as e:
-        return {"status": "degraded", "reason": str(e)[:200]}
+        checks["supabase"] = f"error: {str(e)[:200]}"
+
+    auth = _auth_stats()
+    healthy = checks["supabase"] in ("ok", "no_data") and auth["authenticated"]
+
+    return {
+        "status": "ok" if healthy else "degraded",
+        "version": "3.1",
+        "multi_tenant": True,
+        "auth_mode": "service_account",
+        "default_owner_configured": bool(DEFAULT_OWNER_ID),
+        "checks": checks,
+        "auth": auth,
+        "reference_cache": _cache_stats(),
+        "tenant_cache": _tenant_cache_stats(),
+    }
 
 
 # ============================================================
