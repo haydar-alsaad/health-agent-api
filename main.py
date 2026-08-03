@@ -1,45 +1,71 @@
 """
-Al-Noor Healthcare Agent API - v2.1
+Al-Noor Healthcare Agent API - v3.0 (multi-tenant)
 Architecture: Supabase-backed via httpx REST + service role key.
 
-CHANGES FROM v2.0:
-  - /slots now uses the in-process reference cache for both filtering
-    (specialty/city → doctor_ids resolved in-memory) and enrichment
-    (doctor/clinic name lookups). Was hitting Supabase twice per call.
-  - /patient.primary_doctor is now resolved from the cached doctors dict
-    instead of a separate sb_get_one. One less Supabase query per lookup.
-  - /appointment/book's audit-log lookup for doctor + clinic names now uses
-    the cache. Minor, but keeps the cache pattern consistent.
-  - /health exposes cache stats so we can verify warmth in production.
-  - Stale comment in /appointment/reschedule fixed.
+CHANGES FROM v2.1 — MULTI-TENANCY:
+  - Every endpoint accepts `caller_phone` (the WhatsApp sender's number from the
+    agent's [User WhatsApp:] metadata). Railway resolves it to an `owner_id` via
+    the `demo_users` table and scopes every per-tenant Supabase query by it.
+  - Falls back to DEFAULT_OWNER_ID when caller_phone is missing or unresolvable,
+    so agents that haven't been updated yet keep working against the shared
+    default demo tenant. Zero-downtime rollout.
+  - sb_get / sb_insert / sb_update / sb_delete take an explicit `owner` argument.
+    If the table is per-tenant and `owner` is None, they raise — failing loudly
+    beats silently returning another tenant's rows.
+  - Phone normalization tolerates a missing "+" and strips spaces/dashes.
+  - reschedule split into _book_impl / _cancel_impl internals so `owner`
+    threads through cleanly.
+  - SEED_ON_BOOT now defaults to FALSE. Baseline seeding is handled by
+    Supabase's clone_baseline_for_user() on signup. The JSON seed path is kept
+    (gated) for bootstrapping a brand-new environment; it writes under
+    DEFAULT_OWNER_ID.
 
-No API surface changes. All existing agent tool configs continue to work.
+CARRIED FORWARD FROM v2.1:
+  - HTTP/2 on the httpx client
+  - In-process reference cache (doctors, clinics) — these are SHARED tables,
+    so the cache stays global and is NOT per-tenant.
+  - /slots, /patient, /appointment/book use the cache for enrichment.
+
+TENANCY MODEL:
+  Per-tenant tables (scoped by owner_id):
+    patients, appointments, prescriptions, lab_results, invoices,
+    medical_history, refill_requests, preauth_requests, agent_actions,
+    lab_documents, doctor_availability
+  Shared tables (no owner_id, one copy for everyone):
+    doctors, clinics, pharmacies, medications_catalog, insurance_providers
+
+ENV VARS:
+  SUPABASE_URL                 (required)
+  SUPABASE_SERVICE_ROLE_KEY    (required)
+  DEFAULT_OWNER_ID             (required) UUID of the fallback demo tenant
+  SEED_ON_BOOT                 (optional, default "false")
 
 Endpoints:
   Read:
     GET /health                      - status + Supabase reachability + cache stats
-    GET /patient                     - workhorse: full patient package (parallelized, cached)
-    GET /doctor                      - doctor info
-    GET /slots                       - available appointment slots
-    GET /clinic                      - clinic info
-    GET /medication                  - medication catalog lookup
-    GET /insurance                   - insurance plan lookup
+    GET /patient                     - workhorse: full patient package
+    GET /doctor                      - doctor info (shared catalog)
+    GET /slots                       - available appointment slots (per-tenant)
+    GET /clinic                      - clinic info (shared catalog)
+    GET /medication                  - medication catalog lookup (shared)
+    GET /insurance                   - insurance plan lookup (shared)
     GET /lab-result/fetch            - fetch pre-generated lab result PDF URL
   Write:
     POST /appointment/book           - book a slot, create appointment
     POST /appointment/cancel         - cancel appointment, release slot
-    POST /appointment/reschedule     - cancel + book in one transaction
+    POST /appointment/reschedule     - book new + cancel old
     POST /prescription/refill        - create refill request, decrement refills
     POST /invoice/payment            - record payment, mark invoice Paid
     POST /profile/update             - update phone/email/address only
     POST /preauth/request            - create pre-auth request
-    POST /lab-result/release         - flip Pending → Released (portal-side)
+    POST /lab-result/release         - flip Pending → Released
     POST /patient/register           - self-registration (Pending Verification)
 """
 
 import asyncio
 import json
 import os
+import re
 import sys
 from datetime import date, datetime, timedelta
 from time import monotonic as _monotonic
@@ -56,11 +82,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-SEED_ON_BOOT = os.environ.get("SEED_ON_BOOT", "true").lower() == "true"
+DEFAULT_OWNER_ID = os.environ.get("DEFAULT_OWNER_ID", "")
+SEED_ON_BOOT = os.environ.get("SEED_ON_BOOT", "false").lower() == "true"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("WARNING: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. API will fail.")
+if not DEFAULT_OWNER_ID:
+    print(
+        "WARNING: DEFAULT_OWNER_ID not set. Requests without a resolvable "
+        "caller_phone will fail. Set this to the UUID of the fallback demo tenant."
+    )
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
@@ -71,10 +103,34 @@ HEADERS = {
 
 
 # ============================================================
+# Tenancy: which tables carry owner_id
+# ============================================================
+# Per-tenant tables get `owner_id=eq.<uuid>` injected into every query and
+# `owner_id` injected into every inserted row.
+#
+# Shared tables (doctors, clinics, pharmacies, medications_catalog,
+# insurance_providers) have no owner_id — one copy serves all tenants.
+
+TENANT_TABLES = {
+    "patients",
+    "appointments",
+    "prescriptions",
+    "lab_results",
+    "lab_documents",
+    "invoices",
+    "medical_history",
+    "refill_requests",
+    "preauth_requests",
+    "agent_actions",
+    "doctor_availability",
+}
+
+
+# ============================================================
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="2.1")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -111,11 +167,91 @@ async def shutdown():
 
 
 # ============================================================
-# Supabase REST helpers
+# Phone normalization + tenant resolution
 # ============================================================
 
-async def sb_get(table: str, params: Optional[dict] = None) -> list:
-    """GET from Supabase REST. Returns list of rows."""
+def normalize_phone(raw: Optional[str]) -> Optional[str]:
+    """Canonicalize a phone number to E.164 with a leading '+'.
+
+    Tolerates: missing '+', spaces, dashes, parentheses, leading '00'.
+    Returns None for empty/unusable input.
+
+    This exists because URL query strings sometimes drop or mangle the '+'
+    (it URL-encodes to a space), and agents occasionally strip it. Normalizing
+    on both write and read sides means the lookup matches regardless.
+    """
+    if not raw:
+        return None
+    s = re.sub(r"[\s\-()]", "", str(raw).strip())
+    if not s:
+        return None
+    if s.startswith("00"):
+        s = "+" + s[2:]
+    elif not s.startswith("+"):
+        s = "+" + s
+    # Must be + followed by digits only
+    if not re.fullmatch(r"\+\d{6,20}", s):
+        return None
+    return s
+
+
+# Tenant resolution cache. Bindings change rarely (a sales person sets their
+# demo number once), so a longer TTL than the reference cache is fine.
+_TENANT_CACHE_TTL = 300.0  # 5 minutes
+_tenant_cache: dict = {}  # normalized_phone -> {"owner_id": str, "ts": float}
+
+
+async def resolve_owner(caller_phone: Optional[str]) -> str:
+    """Resolve a WhatsApp phone number to the owning demo tenant's owner_id.
+
+    Falls back to DEFAULT_OWNER_ID when:
+      - caller_phone is missing (agent not yet updated with the parameter)
+      - caller_phone doesn't match any demo_users row (sales person hasn't
+        registered their demo number yet)
+
+    The fallback is deliberate: a demo that silently lands in the shared
+    default tenant is recoverable; a hard 400 mid-demo in front of a prospect
+    is not.
+    """
+    normalized = normalize_phone(caller_phone)
+    if not normalized:
+        return DEFAULT_OWNER_ID
+
+    cached = _tenant_cache.get(normalized)
+    if cached and (_monotonic() - cached["ts"]) <= _TENANT_CACHE_TTL:
+        return cached["owner_id"]
+
+    # demo_users is NOT a per-tenant table — it's the tenant registry itself.
+    rows = await _sb_raw_get("demo_users", {
+        "whatsapp_number": f"eq.{normalized}",
+        "select": "owner_id",
+        "limit": "1",
+    })
+    owner = rows[0]["owner_id"] if rows else DEFAULT_OWNER_ID
+
+    _tenant_cache[normalized] = {"owner_id": owner, "ts": _monotonic()}
+    return owner
+
+
+def _tenant_cache_stats() -> dict:
+    """Diagnostic: how many phone→tenant bindings are currently cached."""
+    now = _monotonic()
+    return {
+        "entries": len(_tenant_cache),
+        "oldest_age_seconds": (
+            round(now - min(v["ts"] for v in _tenant_cache.values()), 1)
+            if _tenant_cache else None
+        ),
+    }
+
+
+# ============================================================
+# Supabase REST helpers (tenant-aware)
+# ============================================================
+
+async def _sb_raw_get(table: str, params: Optional[dict] = None) -> list:
+    """Unscoped GET. ONLY for non-tenant tables like demo_users.
+    Do not use for anything in TENANT_TABLES."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     try:
         r = await http_client.get(url, headers=HEADERS, params=params or {})
@@ -129,68 +265,49 @@ async def sb_get(table: str, params: Optional[dict] = None) -> list:
         return []
 
 
-async def sb_get_one(table: str, params: Optional[dict] = None) -> Optional[dict]:
+def _scope_params(table: str, params: Optional[dict], owner: Optional[str]) -> dict:
+    """Inject owner_id filter for per-tenant tables.
+
+    Raises loudly if a per-tenant table is queried without an owner. Silent
+    cross-tenant reads are the worst possible failure mode here — better to
+    500 and see it in the logs than to serve another sales person's demo data.
+    """
+    p = dict(params or {})
+    if table in TENANT_TABLES:
+        if not owner:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal error: query on per-tenant table '{table}' missing owner scope",
+            )
+        p["owner_id"] = f"eq.{owner}"
+    return p
+
+
+async def sb_get(table: str, params: Optional[dict] = None, owner: Optional[str] = None) -> list:
+    """GET from Supabase REST, scoped to the tenant for per-tenant tables."""
+    return await _sb_raw_get(table, _scope_params(table, params, owner))
+
+
+async def sb_get_one(table: str, params: Optional[dict] = None, owner: Optional[str] = None) -> Optional[dict]:
     """GET single row from Supabase. Returns dict or None."""
-    rows = await sb_get(table, params)
+    rows = await sb_get(table, params, owner=owner)
     return rows[0] if rows else None
 
 
-# ============================================================
-# In-process cache for rarely-changing reference tables
-# ============================================================
-# doctors (21 rows) and clinics (3 rows) change very rarely — a doctor
-# is added every couple of months at most. Refetching the whole table on
-# every /patient call is wasted work that adds ~1 Supabase round-trip
-# to the critical path. Cache them in memory with a short TTL so the
-# first request after a deploy is normal, but subsequent requests skip
-# the network entirely.
-#
-# Per-replica cache (Railway may run multiple). Each replica warms on
-# its first request. Cache lives until process restart or TTL expires.
+async def sb_insert(table: str, payload, owner: Optional[str] = None) -> Any:
+    """INSERT into Supabase, injecting owner_id for per-tenant tables.
+    Accepts a single dict or a list of dicts."""
+    if table in TENANT_TABLES:
+        if not owner:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal error: insert into per-tenant table '{table}' missing owner scope",
+            )
+        if isinstance(payload, list):
+            payload = [{**row, "owner_id": owner} for row in payload]
+        else:
+            payload = {**payload, "owner_id": owner}
 
-_REF_CACHE_TTL = 60.0  # seconds
-_reference_cache: dict = {
-    "doctors": {"data": None, "ts": 0.0},
-    "clinics": {"data": None, "ts": 0.0},
-}
-
-
-async def get_doctors_cached() -> list:
-    """Return the doctors table from cache or fetch+cache it."""
-    c = _reference_cache["doctors"]
-    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
-        # Only the fields needed for enrichment + doctor info lookups.
-        c["data"] = await sb_get("doctors", {
-            "select": "doctor_id,full_name_en,full_name_ar,specialty_en,specialty_ar,sub_specialty_en,sub_specialty_ar,title_en,title_ar,primary_clinic_id,languages,years_of_experience,qualifications,consultation_fee_sar,followup_fee_sar,bio_en,bio_ar,status"
-        })
-        c["ts"] = _monotonic()
-    return c["data"]
-
-
-async def get_clinics_cached() -> list:
-    """Return the clinics table from cache or fetch+cache it."""
-    c = _reference_cache["clinics"]
-    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
-        c["data"] = await sb_get("clinics", {"select": "*"})
-        c["ts"] = _monotonic()
-    return c["data"]
-
-
-def _cache_stats() -> dict:
-    """Diagnostic: current cache warmth per table. Exposed via /health."""
-    now = _monotonic()
-    return {
-        table: {
-            "warm": entry["data"] is not None,
-            "row_count": len(entry["data"]) if entry["data"] is not None else 0,
-            "age_seconds": round(now - entry["ts"], 1) if entry["ts"] else None,
-        }
-        for table, entry in _reference_cache.items()
-    }
-
-
-async def sb_insert(table: str, payload) -> Any:
-    """INSERT into Supabase. Returns inserted row(s)."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     try:
         r = await http_client.post(url, headers=HEADERS, json=payload)
@@ -201,11 +318,12 @@ async def sb_insert(table: str, payload) -> Any:
         raise HTTPException(status_code=500, detail=f"Insert to {table} failed: {e.response.text[:200]}")
 
 
-async def sb_update(table: str, params: dict, payload: dict) -> Any:
-    """UPDATE rows in Supabase matching params (using PostgREST filter syntax)."""
+async def sb_update(table: str, params: dict, payload: dict, owner: Optional[str] = None) -> Any:
+    """UPDATE rows matching params, scoped to the tenant for per-tenant tables."""
+    scoped = _scope_params(table, params, owner)
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     try:
-        r = await http_client.patch(url, headers=HEADERS, params=params, json=payload)
+        r = await http_client.patch(url, headers=HEADERS, params=scoped, json=payload)
         r.raise_for_status()
         return r.json()
     except httpx.HTTPStatusError as e:
@@ -219,8 +337,10 @@ async def log_agent_action(
     description: str,
     metadata: Optional[dict] = None,
     status: str = "Success",
+    owner: Optional[str] = None,
 ):
-    """Insert into agent_actions for the Live Activity Drawer."""
+    """Insert into agent_actions for the Live Activity Drawer.
+    Scoped to the tenant so each sales person sees only their own activity feed."""
     try:
         await sb_insert("agent_actions", {
             "patient_id": patient_id,
@@ -228,15 +348,70 @@ async def log_agent_action(
             "description": description,
             "metadata": metadata or {},
             "status": status,
-        })
+        }, owner=owner)
     except Exception as e:
         # Audit log failures should not break the parent operation
         print(f"agent_actions log failed: {e}")
 
 
 # ============================================================
-# Data seeding (run once on boot if tables empty)
+# In-process cache for SHARED reference tables
 # ============================================================
+# doctors (21 rows) and clinics (3 rows) are SHARED across all tenants — one
+# copy of the catalog, no owner_id. So this cache stays global; it is NOT
+# per-tenant and does not need invalidating when a tenant resets.
+#
+# NOTE: doctor_availability is NOT cached here. It moved to per-tenant in the
+# multi-tenancy migration (so two sales people can't collide on the same slot),
+# and it changes with every booking. It's queried live, scoped by owner.
+
+_REF_CACHE_TTL = 60.0  # seconds
+_reference_cache: dict = {
+    "doctors": {"data": None, "ts": 0.0},
+    "clinics": {"data": None, "ts": 0.0},
+}
+
+
+async def get_doctors_cached() -> list:
+    """Return the shared doctors catalog from cache or fetch+cache it."""
+    c = _reference_cache["doctors"]
+    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
+        c["data"] = await sb_get("doctors", {
+            "select": "doctor_id,full_name_en,full_name_ar,specialty_en,specialty_ar,sub_specialty_en,sub_specialty_ar,title_en,title_ar,primary_clinic_id,languages,years_of_experience,qualifications,consultation_fee_sar,followup_fee_sar,bio_en,bio_ar,status"
+        })
+        c["ts"] = _monotonic()
+    return c["data"]
+
+
+async def get_clinics_cached() -> list:
+    """Return the shared clinics catalog from cache or fetch+cache it."""
+    c = _reference_cache["clinics"]
+    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
+        c["data"] = await sb_get("clinics", {"select": "*"})
+        c["ts"] = _monotonic()
+    return c["data"]
+
+
+def _cache_stats() -> dict:
+    """Diagnostic: current cache warmth per shared reference table."""
+    now = _monotonic()
+    return {
+        table: {
+            "warm": entry["data"] is not None,
+            "row_count": len(entry["data"]) if entry["data"] is not None else 0,
+            "age_seconds": round(now - entry["ts"], 1) if entry["ts"] else None,
+        }
+        for table, entry in _reference_cache.items()
+    }
+
+
+# ============================================================
+# Data seeding (bootstrap only — OFF by default)
+# ============================================================
+# In the multi-tenant world, baseline data lives in Supabase's *_backup tables
+# and is cloned per-user by clone_baseline_for_user() on signup. This JSON seed
+# path is kept only for bootstrapping a brand-new empty environment; it writes
+# everything under DEFAULT_OWNER_ID. Enable with SEED_ON_BOOT=true.
 
 SEED_FILES = [
     # Order matters for foreign keys: independent tables first
@@ -501,13 +676,19 @@ def json_to_db_row(table: str, raw: dict) -> dict:
 
 
 async def seed_if_empty():
-    """Check if patients table is empty; if so, seed all tables from JSON."""
+    """Bootstrap an empty environment from JSON, all under DEFAULT_OWNER_ID.
+    Normally OFF — baseline cloning is Supabase's job in the multi-tenant setup."""
+    if not DEFAULT_OWNER_ID:
+        print("[seed] DEFAULT_OWNER_ID not set — refusing to seed.")
+        return
     try:
-        existing = await sb_get("patients", {"select": "patient_id", "limit": "1"})
+        existing = await sb_get(
+            "patients", {"select": "patient_id", "limit": "1"}, owner=DEFAULT_OWNER_ID
+        )
         if existing:
-            print(f"[seed] Database already has data ({len(existing)} patient(s) found). Skipping seed.")
+            print(f"[seed] Default tenant already has data. Skipping seed.")
             return
-        print("[seed] Empty database detected. Seeding from JSON files...")
+        print("[seed] Empty default tenant detected. Seeding from JSON files...")
         for table, filename in SEED_FILES:
             path = os.path.join(DATA_DIR, filename)
             if not os.path.exists(path):
@@ -518,11 +699,10 @@ async def seed_if_empty():
             if not rows:
                 continue
             mapped = [json_to_db_row(table, r) for r in rows]
-            # Batch insert in chunks of 500 (Supabase REST limit safety)
             for i in range(0, len(mapped), 500):
                 chunk = mapped[i:i+500]
                 try:
-                    await sb_insert(table, chunk)
+                    await sb_insert(table, chunk, owner=DEFAULT_OWNER_ID)
                 except Exception as e:
                     print(f"[seed] {table} batch {i} failed: {e}")
             print(f"[seed] {table}: {len(mapped)} rows")
@@ -535,8 +715,8 @@ async def seed_if_empty():
 # Helper: enrich rows with related data
 # ============================================================
 
-async def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> dict:
-    """Add doctor + clinic names to an appointment row."""
+def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> dict:
+    """Add doctor + clinic names to an appointment row (pure function, no I/O)."""
     d = doctors_by_id.get(apt.get("doctor_id"), {})
     c = clinics_by_id.get(apt.get("clinic_id"), {})
     return {
@@ -560,24 +740,30 @@ async def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "2.1",
+        "version": "3.0",
+        "multi_tenant": True,
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_KEY),
+        "default_owner_configured": bool(DEFAULT_OWNER_ID),
     }
 
 
 @app.get("/health")
 async def health():
     """Quick health check (used by cron-job.org for warming).
-    Also exposes reference_cache warmth for production diagnostics."""
+    Exposes reference-cache and tenant-cache warmth for production diagnostics."""
     if not (SUPABASE_URL and SUPABASE_KEY):
         return {"status": "degraded", "reason": "Supabase env not configured"}
-    # Lightweight ping — just confirm Supabase is reachable on one table.
     try:
-        await sb_get("patients", {"select": "patient_id", "limit": "1"})
+        await sb_get(
+            "patients", {"select": "patient_id", "limit": "1"}, owner=DEFAULT_OWNER_ID
+        )
         return {
             "status": "ok",
-            "version": "2.1",
+            "version": "3.0",
+            "multi_tenant": True,
+            "default_owner_configured": bool(DEFAULT_OWNER_ID),
             "reference_cache": _cache_stats(),
+            "tenant_cache": _tenant_cache_stats(),
         }
     except Exception as e:
         return {"status": "degraded", "reason": str(e)[:200]}
@@ -592,24 +778,29 @@ async def get_patient(
     patient_id: Optional[str] = Query(None),
     name: Optional[str] = Query(None),
     phone: Optional[str] = Query(None),
+    caller_phone: Optional[str] = Query(None, description="Demo tenant routing — WhatsApp sender number"),
 ):
     """Returns full patient package: profile, insurance, primary doctor,
     appointments, prescriptions, lab results, invoices, medical history.
-    All sub-fetches run in parallel via asyncio.gather.
+    All sub-fetches run in parallel via asyncio.gather, scoped to the tenant."""
+    owner = await resolve_owner(caller_phone)
 
-    Reference tables (doctors, clinics) come from an in-process cache.
-    primary_doctor is resolved from the cached doctors dict — no separate
-    Supabase call needed."""
-    # Step 1: find the patient
+    # Step 1: find the patient (within this tenant)
     if patient_id:
-        patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+        patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"}, owner=owner)
     elif name:
-        # Case-insensitive partial match on EN or AR name
         patient = await sb_get_one("patients", {
             "or": f"(full_name_en.ilike.*{name}*,full_name_ar.ilike.*{name}*)"
-        })
+        }, owner=owner)
     elif phone:
-        patient = await sb_get_one("patients", {"phone": f"eq.{phone}"})
+        # Normalize so a missing '+' still matches. Try canonical form first,
+        # then the raw value as a fallback for legacy rows.
+        normalized = normalize_phone(phone)
+        patient = None
+        if normalized:
+            patient = await sb_get_one("patients", {"phone": f"eq.{normalized}"}, owner=owner)
+        if not patient:
+            patient = await sb_get_one("patients", {"phone": f"eq.{phone}"}, owner=owner)
     else:
         raise HTTPException(status_code=400, detail="Provide patient_id, name, or phone")
 
@@ -618,15 +809,8 @@ async def get_patient(
 
     pid = patient["patient_id"]
 
-    # Step 2: fetch ALL related data in parallel. Doctors and clinics come from
-    # an in-process cache (refreshed every 60s) so we skip the Supabase round-trip
-    # on the vast majority of warm calls — the tables change rarely.
-    #
-    # HTTP/2 enabled on the httpx client lets all parallel Supabase queries multiplex
-    # over one TCP connection instead of queueing past the HTTP/1.1 6-concurrent limit.
-    #
-    # primary_doctor is NOT fetched separately — we look it up from all_doctors after
-    # the gather, saving one query per patient lookup.
+    # Step 2: fetch ALL related data in parallel, scoped to this tenant.
+    # Doctors and clinics are SHARED catalogs served from the global cache.
     today = date.today().isoformat()
     (
         appointments,
@@ -643,23 +827,23 @@ async def get_patient(
         sb_get("appointments", {
             "patient_id": f"eq.{pid}",
             "order": "date.asc,start_time.asc",
-        }),
+        }, owner=owner),
         sb_get("prescriptions", {
             "patient_id": f"eq.{pid}",
             "order": "issued_date.desc",
-        }),
+        }, owner=owner),
         sb_get("lab_results", {
             "patient_id": f"eq.{pid}",
             "order": "order_date.desc",
-        }),
+        }, owner=owner),
         sb_get("invoices", {
             "patient_id": f"eq.{pid}",
             "order": "issue_date.desc",
-        }),
+        }, owner=owner),
         sb_get("medical_history", {
             "patient_id": f"eq.{pid}",
             "order": "event_date.desc",
-        }),
+        }, owner=owner),
         get_doctors_cached(),
         get_clinics_cached(),
         sb_get_one("insurance_providers", {
@@ -668,17 +852,17 @@ async def get_patient(
         sb_get("refill_requests", {
             "patient_id": f"eq.{pid}",
             "order": "requested_at.desc",
-        }),
+        }, owner=owner),
         sb_get("preauth_requests", {
             "patient_id": f"eq.{pid}",
             "order": "requested_at.desc",
-        }),
+        }, owner=owner),
     )
 
     doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
     clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
 
-    # Resolve primary_doctor from the cached doctors dict — no separate Supabase call.
+    # Resolve primary_doctor from the shared cached catalog
     primary_doctor_id = patient.get("primary_care_doctor_id")
     primary_doctor = doctors_by_id.get(primary_doctor_id) if primary_doctor_id else None
 
@@ -686,13 +870,12 @@ async def get_patient(
     upcoming = []
     past = []
     for apt in appointments:
-        enriched = await enrich_appointment(apt, doctors_by_id, clinics_by_id)
+        enriched = enrich_appointment(apt, doctors_by_id, clinics_by_id)
         if apt["date"] >= today and apt.get("status") not in ("Cancelled", "Completed"):
             upcoming.append(enriched)
         else:
             past.append(enriched)
 
-    # past sorted reverse-chrono; keep most recent 5
     past = sorted(past, key=lambda x: x.get("date", ""), reverse=True)[:5]
 
     active_prescriptions = [p for p in prescriptions if p.get("status") == "Active"]
@@ -701,8 +884,6 @@ async def get_patient(
     outstanding_invoices = [i for i in invoices if i.get("status") == "Outstanding"]
     paid_invoices = [i for i in invoices if i.get("status") == "Paid"]
 
-    # Pending refill and preauth requests — these are in-flight workflows the agent
-    # should be aware of before submitting duplicates.
     pending_refill_requests = [
         r for r in (refill_reqs or [])
         if r.get("status") in ("Submitted", "Approved", "In Progress")
@@ -712,11 +893,9 @@ async def get_patient(
         if p.get("status") in ("Submitted", "Under Review", "Approved")
     ]
 
-    # Compute allergies alert
     allergies = patient.get("allergies") or []
     allergies_alert = bool(allergies)
 
-    # Payment history summary
     total_paid = sum(float(i.get("patient_due_sar") or 0) for i in paid_invoices)
     total_outstanding = sum(float(i.get("patient_due_sar") or 0) for i in outstanding_invoices)
 
@@ -749,7 +928,7 @@ async def get_patient(
 
 
 # ============================================================
-# READ: /doctor
+# READ: /doctor  (shared catalog — no tenant scoping needed)
 # ============================================================
 
 @app.get("/doctor")
@@ -758,20 +937,17 @@ async def get_doctor(
     name: Optional[str] = Query(None),
     specialty: Optional[str] = Query(None),
     clinic_id: Optional[str] = Query(None),
+    caller_phone: Optional[str] = Query(None, description="Accepted for consistency; doctors is a shared catalog"),
 ):
-    """
-    Look up doctor info. Robust to the agent passing multiple parameters
-    (e.g. doctor_id + name): if the primary filter returns nothing, falls
-    back through the remaining provided filters before giving up.
-    """
+    """Look up doctor info from the shared catalog. Robust to the agent passing
+    multiple parameters: if the primary filter returns nothing, falls back
+    through the remaining provided filters before giving up."""
     if not any([doctor_id, name, specialty, clinic_id]):
         raise HTTPException(
             status_code=400,
             detail="Provide at least one of: doctor_id, name, specialty, clinic_id"
         )
 
-    # Try filters in priority order. If a filter returns results, return them.
-    # If empty, fall through to the next provided filter.
     attempts = []
     if doctor_id:
         attempts.append(("doctor_id", {"doctor_id": f"eq.{doctor_id}", "order": "full_name_en.asc"}))
@@ -785,20 +961,17 @@ async def get_doctor(
     if clinic_id:
         attempts.append(("clinic_id", {"primary_clinic_id": f"eq.{clinic_id}", "order": "full_name_en.asc"}))
 
-    last_filter = None
     for filter_name, params in attempts:
-        last_filter = filter_name
         doctors = await sb_get("doctors", params)
         if doctors:
             return {"doctors": doctors, "count": len(doctors), "matched_by": filter_name}
 
-    # All provided filters returned empty
     return {"doctors": [], "count": 0, "matched_by": None,
             "note": f"No doctor matched the provided filters (tried: {[a[0] for a in attempts]})"}
 
 
 # ============================================================
-# READ: /slots
+# READ: /slots  (doctor_availability is PER-TENANT)
 # ============================================================
 
 @app.get("/slots")
@@ -811,21 +984,23 @@ async def get_slots(
     near_date: Optional[str] = Query(None),
     near_window_days: int = Query(7),
     limit: int = Query(5),
+    caller_phone: Optional[str] = Query(None, description="Demo tenant routing — WhatsApp sender number"),
 ):
-    """Available appointment slots, sorted by earliest first (or by proximity to near_date).
+    """Available appointment slots for THIS tenant, earliest first.
 
-    Uses the in-process reference cache for both filter resolution (specialty/city
-    → doctor_ids) and enrichment (doctor/clinic name attachment). On warm cache
-    this is 1 Supabase query total (just the slots table)."""
+    Doctors and clinics come from the shared cached catalogs (used for both
+    filter resolution and enrichment). doctor_availability is per-tenant, so
+    each sales person has their own slot grid — no cross-demo booking collisions.
+    """
+    owner = await resolve_owner(caller_phone)
     today = date.today().isoformat()
 
-    # Load reference tables from cache — used for filtering AND enrichment.
     all_doctors = await get_doctors_cached()
     all_clinics = await get_clinics_cached()
     doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
     clinics_by_id = {c["clinic_id"]: c for c in all_clinics}
 
-    # If specialty or city given, resolve to doctor_ids in memory
+    # Resolve specialty/city to doctor_ids in memory (shared catalog)
     doctor_filter_ids: Optional[list] = None
     if specialty or city:
         candidates = all_doctors
@@ -849,7 +1024,6 @@ async def get_slots(
         if not doctor_filter_ids:
             return {"slots": [], "count": 0}
 
-    # Now query the slots table itself (this can't be cached — changes with bookings)
     params = {
         "status": "eq.Open",
         "select": "*",
@@ -865,10 +1039,8 @@ async def get_slots(
     if from_date:
         params["date"] = f"gte.{from_date}"
     else:
-        # default: today onward
         params["date"] = f"gte.{today}"
 
-    # near_date overrides from_date for proximity sort
     if near_date:
         try:
             target = datetime.strptime(near_date, "%Y-%m-%d").date()
@@ -879,9 +1051,8 @@ async def get_slots(
         except ValueError:
             pass  # ignore malformed date
 
-    slots = await sb_get("doctor_availability", params)
+    slots = await sb_get("doctor_availability", params, owner=owner)
 
-    # Enrich with doctor + clinic names from the cache (no extra Supabase calls)
     enriched = []
     for s in slots:
         d = doctors_by_id.get(s["doctor_id"], {})
@@ -901,13 +1072,14 @@ async def get_slots(
 
 
 # ============================================================
-# READ: /clinic
+# READ: /clinic  (shared catalog)
 # ============================================================
 
 @app.get("/clinic")
 async def get_clinic(
     clinic_id: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
+    caller_phone: Optional[str] = Query(None, description="Accepted for consistency; clinics is a shared catalog"),
 ):
     params = {}
     if clinic_id:
@@ -919,13 +1091,14 @@ async def get_clinic(
 
 
 # ============================================================
-# READ: /medication
+# READ: /medication  (shared catalog)
 # ============================================================
 
 @app.get("/medication")
 async def get_medication(
     medication_id: Optional[str] = Query(None),
     name: Optional[str] = Query(None),
+    caller_phone: Optional[str] = Query(None, description="Accepted for consistency; medications is a shared catalog"),
 ):
     params = {}
     if medication_id:
@@ -939,11 +1112,14 @@ async def get_medication(
 
 
 # ============================================================
-# READ: /insurance
+# READ: /insurance  (shared catalog)
 # ============================================================
 
 @app.get("/insurance")
-async def get_insurance(provider_id: Optional[str] = Query(None)):
+async def get_insurance(
+    provider_id: Optional[str] = Query(None),
+    caller_phone: Optional[str] = Query(None, description="Accepted for consistency; insurance is a shared catalog"),
+):
     if not provider_id:
         raise HTTPException(status_code=400, detail="Provide provider_id")
     plan = await sb_get_one("insurance_providers", {"provider_id": f"eq.{provider_id}"})
@@ -957,14 +1133,16 @@ async def get_insurance(provider_id: Optional[str] = Query(None)):
 # ============================================================
 
 @app.get("/lab-result/fetch")
-async def fetch_lab_document(lab_result_id: str = Query(...)):
-    """
-    Fetch the pre-generated PDF document for a released lab result.
+async def fetch_lab_document(
+    lab_result_id: str = Query(...),
+    caller_phone: Optional[str] = Query(None, description="Demo tenant routing — WhatsApp sender number"),
+):
+    """Fetch the pre-generated PDF document for a released lab result.
     Returns the download URL and metadata. The agent sends this URL via
-    send_whatsapp_media to deliver the PDF to the patient.
-    """
-    # 1) Verify the lab result exists and is Released
-    lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"})
+    send_whatsapp_media to deliver the PDF to the patient."""
+    owner = await resolve_owner(caller_phone)
+
+    lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"}, owner=owner)
     if not lab:
         raise HTTPException(status_code=404, detail="Lab result not found")
     if lab.get("status") != "Released":
@@ -973,15 +1151,13 @@ async def fetch_lab_document(lab_result_id: str = Query(...)):
             detail=f"Lab result is {lab.get('status', 'not Released')} — no PDF available yet"
         )
 
-    # 2) Find the associated PDF document
-    doc = await sb_get_one("lab_documents", {"lab_result_id": f"eq.{lab_result_id}"})
+    doc = await sb_get_one("lab_documents", {"lab_result_id": f"eq.{lab_result_id}"}, owner=owner)
     if not doc:
         raise HTTPException(
             status_code=404,
             detail="No PDF document found for this lab result"
         )
 
-    # 3) Return the URL and metadata
     return {
         "ok": True,
         "lab_result_id": lab_result_id,
@@ -999,19 +1175,21 @@ async def fetch_lab_document(lab_result_id: str = Query(...)):
 # WRITE: /appointment/book
 # ============================================================
 
-@app.post("/appointment/book")
-async def book_appointment(
-    patient_id: str = Body(...),
-    slot_id: str = Body(...),
-    reason: Optional[str] = Body(None),
-    type: str = Body("Initial Consultation"),
-):
-    """Book a slot, increment Booked Count, create appointment row."""
-    # 1. Validate patient + slot exist
-    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+async def _book_impl(
+    patient_id: str,
+    slot_id: str,
+    reason: Optional[str],
+    apt_type: str,
+    owner: str,
+) -> dict:
+    """Internal booking implementation, tenant-scoped.
+    Split out from the endpoint so /appointment/reschedule can call it with
+    an already-resolved owner instead of re-resolving."""
+    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"}, owner=owner)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    slot = await sb_get_one("doctor_availability", {"slot_id": f"eq.{slot_id}"})
+
+    slot = await sb_get_one("doctor_availability", {"slot_id": f"eq.{slot_id}"}, owner=owner)
     if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
     if slot.get("status") != "Open":
@@ -1019,8 +1197,14 @@ async def book_appointment(
     if slot.get("booked_count", 0) >= slot.get("slot_capacity", 1):
         raise HTTPException(status_code=409, detail="Slot is full")
 
-    # 2. Generate appointment ID
-    existing = await sb_get("appointments", {"select": "appointment_id", "order": "appointment_id.desc", "limit": "1"})
+    # Generate the next appointment ID WITHIN THIS TENANT. Each tenant counts
+    # independently, so APT-H042 in Alice's demo and APT-H042 in Bob's demo are
+    # different appointments — that's intentional, they're separate demos.
+    existing = await sb_get(
+        "appointments",
+        {"select": "appointment_id", "order": "appointment_id.desc", "limit": "1"},
+        owner=owner,
+    )
     next_num = 1
     if existing:
         try:
@@ -1030,14 +1214,15 @@ async def book_appointment(
             next_num = 1000
     apt_id = f"APT-H{next_num:03d}"
 
-    # 3. Mark slot Booked
     new_booked = slot.get("booked_count", 0) + 1
     new_status = "Booked" if new_booked >= slot.get("slot_capacity", 1) else "Open"
-    await sb_update("doctor_availability",
-                    {"slot_id": f"eq.{slot_id}"},
-                    {"booked_count": new_booked, "status": new_status})
+    await sb_update(
+        "doctor_availability",
+        {"slot_id": f"eq.{slot_id}"},
+        {"booked_count": new_booked, "status": new_status},
+        owner=owner,
+    )
 
-    # 4. Insert appointment
     apt_row = {
         "appointment_id": apt_id,
         "patient_id": patient_id,
@@ -1046,15 +1231,14 @@ async def book_appointment(
         "date": slot["date"],
         "start_time": slot["start_time"],
         "duration_minutes": 30,
-        "type": type,
+        "type": apt_type,
         "reason_for_visit": reason or "",
         "status": "Scheduled",
         "created_date": date.today().isoformat(),
     }
-    await sb_insert("appointments", apt_row)
+    await sb_insert("appointments", apt_row, owner=owner)
 
-    # 5. Log agent action — use the cached doctors/clinics for name lookup
-    # (no extra Supabase calls on the write path)
+    # Doctor/clinic names from the shared cached catalogs — no extra queries
     all_doctors = await get_doctors_cached()
     all_clinics = await get_clinics_cached()
     doctors_by_id = {d["doctor_id"]: d for d in all_doctors}
@@ -1071,50 +1255,78 @@ async def book_appointment(
         "slot_id": slot_id,
         "doctor_id": slot["doctor_id"],
         "clinic_id": slot["clinic_id"],
-    })
+    }, owner=owner)
 
     return {"ok": True, "appointment_id": apt_id, "appointment": apt_row}
+
+
+@app.post("/appointment/book")
+async def book_appointment(
+    patient_id: str = Body(...),
+    slot_id: str = Body(...),
+    reason: Optional[str] = Body(None),
+    type: str = Body("Initial Consultation"),
+    caller_phone: Optional[str] = Body(None),
+):
+    """Book a slot, increment booked_count, create appointment row."""
+    owner = await resolve_owner(caller_phone)
+    return await _book_impl(patient_id, slot_id, reason, type, owner)
 
 
 # ============================================================
 # WRITE: /appointment/cancel
 # ============================================================
 
-@app.post("/appointment/cancel")
-async def cancel_appointment(
-    appointment_id: str = Body(...),
-    reason: Optional[str] = Body(None),
-):
-    apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"})
+async def _cancel_impl(appointment_id: str, reason: Optional[str], owner: str) -> dict:
+    """Internal cancellation implementation, tenant-scoped."""
+    apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"}, owner=owner)
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
     if apt.get("status") in ("Cancelled", "Completed"):
         raise HTTPException(status_code=409, detail=f"Cannot cancel — status is {apt['status']}")
 
-    # Mark cancelled
-    await sb_update("appointments",
-                    {"appointment_id": f"eq.{appointment_id}"},
-                    {"status": "Cancelled",
-                     "notes": f"{apt.get('notes') or ''}\nCancelled: {reason or 'No reason given'}"})
+    await sb_update(
+        "appointments",
+        {"appointment_id": f"eq.{appointment_id}"},
+        {"status": "Cancelled",
+         "notes": f"{apt.get('notes') or ''}\nCancelled: {reason or 'No reason given'}"},
+        owner=owner,
+    )
 
-    # Try to release the slot (find by doctor+date+time)
+    # Release the slot (find by doctor+date+time within this tenant)
     slot = await sb_get_one("doctor_availability", {
         "doctor_id": f"eq.{apt['doctor_id']}",
         "date": f"eq.{apt['date']}",
         "start_time": f"eq.{apt['start_time']}",
-    })
+    }, owner=owner)
     if slot:
         new_booked = max(0, slot.get("booked_count", 1) - 1)
         new_status = "Open" if new_booked < slot.get("slot_capacity", 1) else slot.get("status")
-        await sb_update("doctor_availability",
-                        {"slot_id": f"eq.{slot['slot_id']}"},
-                        {"booked_count": new_booked, "status": new_status})
+        await sb_update(
+            "doctor_availability",
+            {"slot_id": f"eq.{slot['slot_id']}"},
+            {"booked_count": new_booked, "status": new_status},
+            owner=owner,
+        )
 
-    await log_agent_action(apt["patient_id"], "Cancel Appointment",
-                           f"Cancelled appointment {appointment_id} on {apt['date']} at {apt['start_time']}",
-                           {"appointment_id": appointment_id, "reason": reason})
+    await log_agent_action(
+        apt["patient_id"], "Cancel Appointment",
+        f"Cancelled appointment {appointment_id} on {apt['date']} at {apt['start_time']}",
+        {"appointment_id": appointment_id, "reason": reason},
+        owner=owner,
+    )
 
     return {"ok": True, "appointment_id": appointment_id, "status": "Cancelled"}
+
+
+@app.post("/appointment/cancel")
+async def cancel_appointment(
+    appointment_id: str = Body(...),
+    reason: Optional[str] = Body(None),
+    caller_phone: Optional[str] = Body(None),
+):
+    owner = await resolve_owner(caller_phone)
+    return await _cancel_impl(appointment_id, reason, owner)
 
 
 # ============================================================
@@ -1126,26 +1338,40 @@ async def reschedule_appointment(
     appointment_id: str = Body(...),
     new_slot_id: str = Body(...),
     reason: Optional[str] = Body(None),
+    caller_phone: Optional[str] = Body(None),
 ):
+    """Move an appointment to a new slot. Books the new slot FIRST — if that
+    fails, nothing is cancelled and the patient keeps their original booking."""
+    owner = await resolve_owner(caller_phone)
+
     # 1. look up existing appointment
-    apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"})
+    apt = await sb_get_one("appointments", {"appointment_id": f"eq.{appointment_id}"}, owner=owner)
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
     patient_id = apt["patient_id"]
     apt_type = apt.get("type", "Follow-up")
 
-    # 2. book new (do this first — if it fails, we haven't cancelled anything)
-    book_result = await book_appointment(
+    # 2. book new
+    book_result = await _book_impl(
         patient_id=patient_id,
         slot_id=new_slot_id,
         reason=apt.get("reason_for_visit"),
-        type=apt_type,
+        apt_type=apt_type,
+        owner=owner,
     )
 
     # 3. cancel old (only after new is booked successfully)
-    await cancel_appointment(appointment_id=appointment_id, reason=f"Rescheduled to {book_result['appointment_id']}")
+    await _cancel_impl(
+        appointment_id=appointment_id,
+        reason=f"Rescheduled to {book_result['appointment_id']}",
+        owner=owner,
+    )
 
-    return {"ok": True, "old_appointment_id": appointment_id, "new_appointment_id": book_result["appointment_id"]}
+    return {
+        "ok": True,
+        "old_appointment_id": appointment_id,
+        "new_appointment_id": book_result["appointment_id"],
+    }
 
 
 # ============================================================
@@ -1158,16 +1384,18 @@ async def refill_prescription(
     medication_id: str = Body(...),
     pharmacy_id: str = Body(...),
     delivery_method: str = Body("Pickup"),  # "Pickup" | "Home Delivery"
+    caller_phone: Optional[str] = Body(None),
 ):
-    rx = await sb_get_one("prescriptions", {"prescription_id": f"eq.{prescription_id}"})
+    owner = await resolve_owner(caller_phone)
+
+    rx = await sb_get_one("prescriptions", {"prescription_id": f"eq.{prescription_id}"}, owner=owner)
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
     if rx.get("status") != "Active":
         raise HTTPException(status_code=409, detail=f"Prescription is {rx.get('status')}")
 
-    # Find the specific medication in the JSON array, decrement refills
-    # Lovable normalized JSONB keys from "Medication ID" → "medication_id", etc.
-    # We tolerate both formats for safety.
+    # Find the specific medication in the JSON array, decrement refills.
+    # Tolerates both snake_case and original "Title Case" JSONB keys.
     meds = rx.get("medications", [])
     med_name = None
     found = False
@@ -1179,7 +1407,6 @@ async def refill_prescription(
                 refills_remaining = m.get("Refills Remaining", 0)
             if refills_remaining <= 0:
                 raise HTTPException(status_code=409, detail="No refills remaining")
-            # Decrement in whichever key the data uses
             if "refills_remaining" in m:
                 m["refills_remaining"] = refills_remaining - 1
             else:
@@ -1191,11 +1418,15 @@ async def refill_prescription(
     if not found:
         raise HTTPException(status_code=404, detail=f"Medication {medication_id} not in this prescription")
 
-    await sb_update("prescriptions",
-                    {"prescription_id": f"eq.{prescription_id}"},
-                    {"medications": meds, "last_filled_date": date.today().isoformat(), "last_filled_pharmacy_id": pharmacy_id})
+    await sb_update(
+        "prescriptions",
+        {"prescription_id": f"eq.{prescription_id}"},
+        {"medications": meds,
+         "last_filled_date": date.today().isoformat(),
+         "last_filled_pharmacy_id": pharmacy_id},
+        owner=owner,
+    )
 
-    # Create refill request
     refill_row = {
         "prescription_id": prescription_id,
         "patient_id": rx["patient_id"],
@@ -1206,15 +1437,19 @@ async def refill_prescription(
         "status": "Submitted",
         "requested_by": "Agent",
     }
-    await sb_insert("refill_requests", refill_row)
+    await sb_insert("refill_requests", refill_row, owner=owner)
 
+    # pharmacies is a SHARED catalog — no tenant scoping
     pharmacy = await sb_get_one("pharmacies", {"pharmacy_id": f"eq.{pharmacy_id}"})
     pharmacy_name = pharmacy.get("pharmacy_name_en") if pharmacy else pharmacy_id
 
-    await log_agent_action(rx["patient_id"], "Refill Request",
-                           f"Refill requested for {med_name} → {pharmacy_name} ({delivery_method})",
-                           {"prescription_id": prescription_id, "medication_id": medication_id,
-                            "pharmacy_id": pharmacy_id, "delivery_method": delivery_method})
+    await log_agent_action(
+        rx["patient_id"], "Refill Request",
+        f"Refill requested for {med_name} → {pharmacy_name} ({delivery_method})",
+        {"prescription_id": prescription_id, "medication_id": medication_id,
+         "pharmacy_id": pharmacy_id, "delivery_method": delivery_method},
+        owner=owner,
+    )
 
     return {"ok": True, "medication_name": med_name, "pharmacy": pharmacy_name, "delivery_method": delivery_method}
 
@@ -1228,8 +1463,11 @@ async def record_payment(
     invoice_id: str = Body(...),
     amount_sar: float = Body(...),
     payment_method: str = Body("Credit Card"),
+    caller_phone: Optional[str] = Body(None),
 ):
-    inv = await sb_get_one("invoices", {"invoice_id": f"eq.{invoice_id}"})
+    owner = await resolve_owner(caller_phone)
+
+    inv = await sb_get_one("invoices", {"invoice_id": f"eq.{invoice_id}"}, owner=owner)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     if inv.get("status") == "Paid":
@@ -1238,22 +1476,27 @@ async def record_payment(
     due = float(inv.get("patient_due_sar") or 0)
     if amount_sar < due:
         new_status = "Partially Paid"
-        # Track partial via notes
         note_extra = f"\nPartial payment {amount_sar} SAR on {date.today().isoformat()} ({payment_method})"
     else:
         new_status = "Paid"
         note_extra = f"\nPaid in full {amount_sar} SAR on {date.today().isoformat()} ({payment_method})"
 
-    await sb_update("invoices",
-                    {"invoice_id": f"eq.{invoice_id}"},
-                    {"status": new_status,
-                     "payment_method": payment_method,
-                     "payment_date": date.today().isoformat(),
-                     "notes_en": (inv.get("notes_en") or "") + note_extra})
+    await sb_update(
+        "invoices",
+        {"invoice_id": f"eq.{invoice_id}"},
+        {"status": new_status,
+         "payment_method": payment_method,
+         "payment_date": date.today().isoformat(),
+         "notes_en": (inv.get("notes_en") or "") + note_extra},
+        owner=owner,
+    )
 
-    await log_agent_action(inv["patient_id"], "Payment Recorded",
-                           f"Payment of SAR {amount_sar} via {payment_method} for invoice {invoice_id}",
-                           {"invoice_id": invoice_id, "amount_sar": amount_sar, "method": payment_method})
+    await log_agent_action(
+        inv["patient_id"], "Payment Recorded",
+        f"Payment of SAR {amount_sar} via {payment_method} for invoice {invoice_id}",
+        {"invoice_id": invoice_id, "amount_sar": amount_sar, "method": payment_method},
+        owner=owner,
+    )
 
     return {"ok": True, "invoice_id": invoice_id, "status": new_status, "amount_paid_sar": amount_sar}
 
@@ -1270,22 +1513,35 @@ async def update_profile(
     patient_id: str = Body(...),
     field: str = Body(...),
     new_value: str = Body(...),
+    caller_phone: Optional[str] = Body(None),
 ):
     if field not in ALLOWED_PROFILE_FIELDS:
         raise HTTPException(status_code=400, detail=f"Field {field} not updatable. Allowed: {ALLOWED_PROFILE_FIELDS}")
 
-    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+    owner = await resolve_owner(caller_phone)
+
+    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"}, owner=owner)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
+    # Canonicalize phone updates so later lookups match
+    value_to_store = new_value
+    if field == "phone":
+        value_to_store = normalize_phone(new_value) or new_value
+
     old_value = patient.get(field)
-    await sb_update("patients", {"patient_id": f"eq.{patient_id}"}, {field: new_value})
+    await sb_update(
+        "patients", {"patient_id": f"eq.{patient_id}"}, {field: value_to_store}, owner=owner
+    )
 
-    await log_agent_action(patient_id, "Profile Updated",
-                           f"{field}: {old_value} → {new_value}",
-                           {"field": field, "old_value": old_value, "new_value": new_value})
+    await log_agent_action(
+        patient_id, "Profile Updated",
+        f"{field}: {old_value} → {value_to_store}",
+        {"field": field, "old_value": old_value, "new_value": value_to_store},
+        owner=owner,
+    )
 
-    return {"ok": True, "patient_id": patient_id, "field": field, "new_value": new_value}
+    return {"ok": True, "patient_id": patient_id, "field": field, "new_value": value_to_store}
 
 
 # ============================================================
@@ -1297,8 +1553,11 @@ async def request_preauth(
     patient_id: str = Body(...),
     procedure_name: str = Body(...),
     doctor_id: Optional[str] = Body(None),
+    caller_phone: Optional[str] = Body(None),
 ):
-    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"})
+    owner = await resolve_owner(caller_phone)
+
+    patient = await sb_get_one("patients", {"patient_id": f"eq.{patient_id}"}, owner=owner)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
@@ -1310,41 +1569,53 @@ async def request_preauth(
         "status": "Submitted",
         "requested_by": "Agent",
     }
-    result = await sb_insert("preauth_requests", row)
+    await sb_insert("preauth_requests", row, owner=owner)
 
-    await log_agent_action(patient_id, "Pre-Auth Requested",
-                           f"Pre-authorization request submitted for {procedure_name}",
-                           {"procedure": procedure_name, "doctor_id": doctor_id})
+    await log_agent_action(
+        patient_id, "Pre-Auth Requested",
+        f"Pre-authorization request submitted for {procedure_name}",
+        {"procedure": procedure_name, "doctor_id": doctor_id},
+        owner=owner,
+    )
 
     return {"ok": True, "procedure": procedure_name, "status": "Submitted",
             "estimated_response_days": "1-5 business days"}
 
 
 # ============================================================
-# WRITE: /lab-result/release (portal-side, but agent can also trigger)
+# WRITE: /lab-result/release
 # ============================================================
 
 @app.post("/lab-result/release")
 async def release_lab_result(
     lab_result_id: str = Body(...),
     released_by: str = Body("Doctor"),
+    caller_phone: Optional[str] = Body(None),
 ):
-    lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"})
+    owner = await resolve_owner(caller_phone)
+
+    lab = await sb_get_one("lab_results", {"lab_result_id": f"eq.{lab_result_id}"}, owner=owner)
     if not lab:
         raise HTTPException(status_code=404, detail="Lab result not found")
     if lab.get("status") == "Released":
         raise HTTPException(status_code=409, detail="Already released")
 
-    await sb_update("lab_results",
-                    {"lab_result_id": f"eq.{lab_result_id}"},
-                    {"status": "Released",
-                     "result_date": date.today().isoformat(),
-                     "released_at": datetime.utcnow().isoformat(),
-                     "released_by": released_by})
+    await sb_update(
+        "lab_results",
+        {"lab_result_id": f"eq.{lab_result_id}"},
+        {"status": "Released",
+         "result_date": date.today().isoformat(),
+         "released_at": datetime.now().astimezone().isoformat(),
+         "released_by": released_by},
+        owner=owner,
+    )
 
-    await log_agent_action(lab["patient_id"], "Lab Result Released",
-                           f"Released {lab.get('test_name_en')} to patient",
-                           {"lab_result_id": lab_result_id, "released_by": released_by})
+    await log_agent_action(
+        lab["patient_id"], "Lab Result Released",
+        f"Released {lab.get('test_name_en')} to patient",
+        {"lab_result_id": lab_result_id, "released_by": released_by},
+        owner=owner,
+    )
 
     return {"ok": True, "lab_result_id": lab_result_id, "status": "Released"}
 
@@ -1353,7 +1624,6 @@ async def release_lab_result(
 # WRITE: /patient/register
 # ============================================================
 
-# Allowed enum values for the intake fields
 _REGISTRATION_REASONS = {
     "current_concern",
     "new_primary",
@@ -1377,14 +1647,10 @@ def _compose_intake_notes(
     insurance_status: Optional[str],
     insurance_provider: Optional[str],
 ) -> str:
-    """
-    Build a clean, human-readable staff-facing summary of the registration.
-    The staff portal renders this prominently on Pending Verification patients
-    so the staff member calling for verification has full context.
-    """
+    """Build a clean, human-readable staff-facing summary of the registration.
+    The staff portal renders this prominently on Pending Verification patients."""
     parts = [f"Patient self-registered via WhatsApp on {registration_date}."]
 
-    # Reason + concern
     concern_clean = (concern_note or "").strip()
     if reason == "current_concern":
         if concern_clean:
@@ -1406,7 +1672,6 @@ def _compose_intake_notes(
         else:
             parts.append("Reached out for an unspecified reason.")
 
-    # Insurance
     provider_clean = (insurance_provider or "").strip()
     if insurance_status == "has_provider" and provider_clean:
         parts.append(f"Has {provider_clean} insurance.")
@@ -1414,9 +1679,7 @@ def _compose_intake_notes(
         parts.append("Has insurance but doesn't know plan details — needs verification.")
     elif insurance_status == "self_pay":
         parts.append("Self-pay (no insurance on file).")
-    # If unknown or missing, no insurance line
 
-    # Closer recommendation tailored to context
     if reason in ("current_concern", "follow_up"):
         parts.append("Recommend prompt GP follow-up to assess.")
     elif reason == "new_primary":
@@ -1438,30 +1701,25 @@ async def register_new_patient(
     registration_concern_note: Optional[str] = Body(None),
     registration_insurance_provider: Optional[str] = Body(None),
     registration_insurance_status: Optional[str] = Body(None),
+    caller_phone: Optional[str] = Body(None),
 ):
-    """
-    Register a new patient via the WhatsApp agent.
+    """Register a new patient via the WhatsApp agent, within the caller's tenant.
 
     Creates a patient row with status 'Pending Verification' and composes a
-    staff-facing intake_notes summary from the registration context. A staff
-    member follows up within 1 business day to verify and finalize.
+    staff-facing intake_notes summary. A staff member follows up within 1
+    business day to verify and finalize.
 
-    Required: national_id (10 digits, starts with 1=Saudi or 2=Iqama),
-              email, phone, and at least one of full_name_en / full_name_ar.
-    Optional (recommended for richer intake): registration_reason,
-              registration_concern_note, registration_insurance_provider,
-              registration_insurance_status.
+    Duplicate detection is PER-TENANT: the same National ID can exist in two
+    different sales people's demos without conflict. That's intentional — each
+    demo is independent.
     """
+    owner = await resolve_owner(caller_phone)
+
     # === Validation ===
-    # National ID: exactly 10 digits, all numeric
     nid = (national_id or "").strip()
     if not nid.isdigit() or len(nid) != 10:
-        raise HTTPException(
-            status_code=400,
-            detail="National ID must be exactly 10 digits"
-        )
+        raise HTTPException(status_code=400, detail="National ID must be exactly 10 digits")
 
-    # First digit determines id_type
     first_digit = nid[0]
     if first_digit == "1":
         id_type = "Saudi"
@@ -1473,7 +1731,6 @@ async def register_new_patient(
             detail="National ID must start with 1 (Saudi National ID) or 2 (Iqama)"
         )
 
-    # At least one name
     name_en = (full_name_en or "").strip()
     name_ar = (full_name_ar or "").strip()
     if not name_en and not name_ar:
@@ -1482,23 +1739,16 @@ async def register_new_patient(
             detail="At least one of full_name_en or full_name_ar is required"
         )
 
-    # Basic email format
     em = (email or "").strip()
     if "@" not in em or "." not in em.split("@")[-1]:
-        raise HTTPException(
-            status_code=400,
-            detail="A valid email address is required"
-        )
+        raise HTTPException(status_code=400, detail="A valid email address is required")
 
-    # Phone
-    ph = (phone or "").strip()
+    # Canonicalize the patient's phone so downstream get_patient_data(phone=...)
+    # lookups match regardless of '+' handling.
+    ph = normalize_phone(phone)
     if not ph:
-        raise HTTPException(
-            status_code=400,
-            detail="Phone number is required"
-        )
+        raise HTTPException(status_code=400, detail="A valid phone number is required")
 
-    # Optional enum validation
     reason = (registration_reason or "").strip().lower() or None
     if reason and reason not in _REGISTRATION_REASONS:
         raise HTTPException(
@@ -1516,25 +1766,23 @@ async def register_new_patient(
     concern_note = (registration_concern_note or "").strip() or None
     insurance_provider = (registration_insurance_provider or "").strip() or None
 
-    # === Duplicate check by national_id ===
-    existing = await sb_get_one("patients", {"national_id": f"eq.{nid}"})
+    # === Duplicate check by national_id, WITHIN THIS TENANT ===
+    existing = await sb_get_one("patients", {"national_id": f"eq.{nid}"}, owner=owner)
     if existing:
-        # Structured 409 so the agent can extract patient_id reliably (not parse the message string).
-        # This is the recovery path when T2's send_whatsapp_message hits a transient 500 mid-flow:
-        # the first register_new_patient call succeeded, the confirmation message was lost,
-        # the user retries, and we hit this branch. The agent uses `patient_id` to continue.
+        # Structured 409 so the agent can extract patient_id reliably from
+        # detail.patient_id rather than parsing the message string.
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "already_registered",
                 "patient_id": existing.get("patient_id"),
-                "patient_status": existing.get("status"),
+                "patient_status": existing.get("patient_status"),
                 "message": f"A patient with this National ID is already registered (Patient ID: {existing.get('patient_id')})",
             },
         )
 
-    # === Generate next sequential patient_id ===
-    all_patients = await sb_get("patients", {"select": "patient_id"})
+    # === Generate next sequential patient_id WITHIN THIS TENANT ===
+    all_patients = await sb_get("patients", {"select": "patient_id"}, owner=owner)
     max_num = 0
     for p in all_patients:
         pid = p.get("patient_id", "")
@@ -1547,16 +1795,12 @@ async def register_new_patient(
                 pass
     new_patient_id = f"PAT-{max_num + 1:03d}"
 
-    # === Preferred language: prefer AR if AR name was given, else EN ===
     preferred_language = "Arabic" if name_ar else "English"
 
-    # === Compose intake_notes ===
     today_iso = date.today().isoformat()
-    # Friendly date format for the notes (e.g. "June 2, 2026")
     try:
         date_display = date.today().strftime("%B %-d, %Y")
     except ValueError:
-        # Windows fallback (just in case)
         date_display = date.today().strftime("%B %d, %Y").replace(" 0", " ")
 
     intake_notes = _compose_intake_notes(
@@ -1567,7 +1811,6 @@ async def register_new_patient(
         insurance_provider=insurance_provider,
     )
 
-    # === Insert ===
     row = {
         "patient_id": new_patient_id,
         "national_id": nid,
@@ -1590,11 +1833,10 @@ async def register_new_patient(
         "demo_notes": "Self-registered via WhatsApp agent",
     }
 
-    result = await sb_insert("patients", row)
+    result = await sb_insert("patients", row, owner=owner)
     if not result:
         raise HTTPException(status_code=500, detail="Failed to register patient")
 
-    # === Log to agent_actions ===
     display_name = name_en or name_ar
     reason_label = (reason or "unspecified").replace("_", " ")
     await log_agent_action(
@@ -1609,6 +1851,7 @@ async def register_new_patient(
             "registration_reason": reason,
             "registration_insurance_status": insurance_status,
         },
+        owner=owner,
     )
 
     return {
