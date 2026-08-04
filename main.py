@@ -1,7 +1,18 @@
 """
-Al-Noor Healthcare Agent API - v3.1 (multi-tenant, service-account auth)
+Al-Noor Healthcare Agent API - v3.2 (multi-tenant, service-account auth)
 Architecture: Supabase-backed via httpx REST, authenticated as a dedicated
 service-account user (NOT the service role key).
+
+CHANGES IN v3.2:
+  - Added GET /whoami — a tenant-routing diagnostic. Resolves a caller_phone
+    to its owner_id and explains whether it matched or fell back, bypassing
+    (but reporting) the tenant cache. Added after a missing RLS policy on
+    demo_users caused EVERY request to silently resolve to the fallback tenant
+    for days: /health passed, isolation looked perfect in an audit, and the
+    only symptom was that no registered tenant had any agent activity.
+    Also reports how many tenants the API can see — 0 means the service
+    account cannot read demo_users at all, which is a different bug from
+    a phone number simply not being registered.
 
 CHANGES FROM v3.0 — AUTHENTICATION:
   This project lives on Lovable Cloud, where the Supabase service role key is
@@ -254,7 +265,7 @@ TENANT_TABLES = {
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="3.1")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -904,7 +915,7 @@ def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> d
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "3.1",
+        "version": "3.2",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
@@ -938,7 +949,7 @@ async def health():
 
     return {
         "status": "ok" if healthy else "degraded",
-        "version": "3.1",
+        "version": "3.2",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "default_owner_configured": bool(DEFAULT_OWNER_ID),
@@ -947,6 +958,86 @@ async def health():
         "reference_cache": _cache_stats(),
         "tenant_cache": _tenant_cache_stats(),
     }
+
+
+# ============================================================
+# GET /whoami — tenant routing diagnostic
+# ============================================================
+# Answers "which demo tenant does this phone number resolve to, and why?"
+# without needing a Supabase audit.
+#
+# This exists because a broken phone->tenant lookup is INVISIBLE from outside:
+# every request silently falls back to DEFAULT_OWNER_ID, /health still passes
+# (it queries with DEFAULT_OWNER_ID directly), and the data still looks
+# correctly isolated because nothing leaks — everything just lands in one
+# tenant. That failure cost a full multi-tenant data audit to find once.
+#
+# Deliberately bypasses _tenant_cache while REPORTING its state, so a stale
+# cache entry can be told apart from a genuinely failing lookup.
+
+@app.get("/whoami")
+async def whoami(
+    caller_phone: Optional[str] = Query(
+        None, description="Phone number to resolve, with or without the leading '+'"
+    ),
+):
+    """Resolve a caller_phone to its demo tenant and explain the result."""
+    normalized = normalize_phone(caller_phone)
+
+    result: dict = {
+        "caller_phone_received": caller_phone,
+        "normalized_phone": normalized,
+        "default_owner_id": DEFAULT_OWNER_ID or None,
+    }
+
+    # Report the cached value WITHOUT using it, so a stale cache is visible.
+    cached = _tenant_cache.get(normalized) if normalized else None
+    result["cache"] = {
+        "present": bool(cached),
+        "owner_id": cached["owner_id"] if cached else None,
+        "age_seconds": round(_monotonic() - cached["ts"], 1) if cached else None,
+    }
+
+    if not normalized:
+        result.update({
+            "matched": False,
+            "fell_back": True,
+            "resolved_owner_id": DEFAULT_OWNER_ID or None,
+            "reason": "caller_phone missing or not a valid phone number",
+        })
+        return result
+
+    rows = await _sb_raw_get("demo_users", {
+        "whatsapp_number": f"eq.{normalized}",
+        "select": "owner_id,email",
+        "limit": "1",
+    })
+
+    if rows:
+        result.update({
+            "matched": True,
+            "fell_back": False,
+            "resolved_owner_id": rows[0]["owner_id"],
+            "tenant_email": rows[0].get("email"),
+        })
+    else:
+        # How many tenants CAN we see? If this is 0 while the portal shows
+        # registered users, the service account can't read demo_users at all
+        # (missing RLS policy) rather than the number simply not being registered.
+        all_rows = await _sb_raw_get("demo_users", {"select": "owner_id"})
+        result.update({
+            "matched": False,
+            "fell_back": True,
+            "resolved_owner_id": DEFAULT_OWNER_ID or None,
+            "visible_tenant_count": len(all_rows),
+            "reason": (
+                f"no demo_users row with whatsapp_number = '{normalized}' "
+                f"({len(all_rows)} tenants visible to the API) — "
+                "writes for this caller will land in the fallback tenant"
+            ),
+        })
+
+    return result
 
 
 # ============================================================
