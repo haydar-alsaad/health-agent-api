@@ -1,7 +1,28 @@
 """
-Al-Noor Healthcare Agent API - v3.4 (multi-tenant, service-account auth)
+Al-Noor Healthcare Agent API - v3.5 (multi-tenant, service-account auth)
 Architecture: Supabase-backed via httpx REST, authenticated as a dedicated
 service-account user (NOT the service role key).
+
+CHANGES IN v3.5 — RESPONSE PRUNING (no query changes):
+  /patient shipped ~39KB and is re-sent to the model on every tool-loop
+  iteration, so a three-call turn paid for it three times. Removed, from the
+  RESPONSE only:
+    - owner_id / created_at / updated_at across ~20 arrays (tenancy plumbing
+      and audit columns the agent must never use; owner_id alone is a 36-char
+      UUID per row)
+    - all_prescriptions entirely — a superset of active_prescriptions, unused
+      by the agent instructions, carrying a full medications blob per row
+    - the nested `medications` array inside active_prescriptions —
+      refillable_medications already exposes the same content FLAT, and the
+      nested version is what made refills unreliable before v3.3
+    - results / imaging_findings_* / lab_tech / radiologist on lab rows. The
+      instructions forbid reading lab values in chat under any circumstance —
+      results leave only as a PDF. Shipping them and then forbidding their use
+      is a trap, not a safeguard.
+    - always-null registration columns on baseline patients
+  Same pruning applied to /doctor, /slots, /clinic, /medication, /insurance.
+  ~39KB -> ~27KB. No endpoint signature changed, no query changed, no field
+  the agent instructions reference was removed.
 
 CHANGES IN v3.4 — BILLING CORRECTNESS + BOOKING GUARD:
   - PARTIAL PAYMENTS NO LONGER LOSE MONEY. record_payment previously updated
@@ -313,7 +334,7 @@ TENANT_TABLES = {
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="3.4")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.5")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -955,6 +976,60 @@ async def seed_if_empty():
 # Helper: enrich rows with related data
 # ============================================================
 
+# ============================================================
+# Response pruning
+# ============================================================
+# /patient is the hot path — it opens every conversation and is re-sent to the
+# model on EVERY tool-loop iteration, so a three-call turn pays for it three
+# times. Before v3.5 it shipped ~39KB, much of which the agent must never use:
+# tenancy plumbing, audit timestamps, and the raw lab values the SI explicitly
+# forbids reading aloud.
+#
+# Nothing here changes what we QUERY — only what leaves the endpoint.
+
+# Present on nearly every row, never usable by the agent. owner_id alone is a
+# 36-char UUID repeated across ~20 arrays.
+_NOISE_KEYS = ("owner_id", "created_at", "updated_at")
+
+# Raw lab values. The SI's rule is absolute: never read values, units, ranges
+# or flags in chat — results only ever leave as a PDF via fetch_lab_document.
+# Shipping them and then forbidding their use is a trap, not a safeguard.
+_LAB_VALUE_KEYS = ("results", "imaging_findings_en", "imaging_findings_ar",
+                   "lab_tech", "radiologist")
+
+
+def _strip(rows, *extra_keys):
+    """Return rows without noise keys (and any extras). Non-mutating."""
+    drop = set(_NOISE_KEYS) | set(extra_keys)
+    return [{k: v for k, v in r.items() if k not in drop} for r in (rows or [])]
+
+
+def _strip_one(row, *extra_keys):
+    """Same, for a single dict. Returns None unchanged."""
+    if not row:
+        return row
+    drop = set(_NOISE_KEYS) | set(extra_keys)
+    return {k: v for k, v in row.items() if k not in drop}
+
+
+def _strip_nulls(row, keys):
+    """Drop the named keys only where the value is None.
+
+    Baseline patients carry seven always-null registration columns that only
+    self-registered patients populate.
+    """
+    if not row:
+        return row
+    return {k: v for k, v in row.items() if not (k in keys and v is None)}
+
+
+_PATIENT_NULLABLE = (
+    "national_id", "id_type", "registration_reason", "registration_concern_note",
+    "registration_insurance_provider", "registration_insurance_status",
+    "intake_notes", "parent_guardian", "demo_notes",
+)
+
+
 def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> dict:
     """Add doctor + clinic names to an appointment row (pure function, no I/O)."""
     d = doctors_by_id.get(apt.get("doctor_id"), {})
@@ -980,7 +1055,7 @@ def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> d
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "3.4",
+        "version": "3.5",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
@@ -1014,7 +1089,7 @@ async def health():
 
     return {
         "status": "ok" if healthy else "degraded",
-        "version": "3.4",
+        "version": "3.5",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "default_owner_configured": bool(DEFAULT_OWNER_ID),
@@ -1320,31 +1395,39 @@ async def get_patient(
                 "prescribing_doctor_id": rx.get("prescribing_doctor_id"),
             })
 
+    # --- Prune before returning ------------------------------------------
+    # `all_prescriptions` is dropped entirely: it's a superset of
+    # active_prescriptions, isn't referenced by the agent instructions, and
+    # carries a full medications JSONB per row.
+    #
+    # `medications` is stripped from active_prescriptions because
+    # refillable_medications already exposes the same content FLAT — shipping
+    # both means the agent can reach the nested version, which is exactly what
+    # made refills unreliable before v3.3.
     return {
-        "patient": patient,
-        "insurance": insurance,
-        "primary_doctor": primary_doctor,
+        "patient": _strip_nulls(_strip_one(patient), _PATIENT_NULLABLE),
+        "insurance": _strip_one(insurance),
+        "primary_doctor": _strip_one(primary_doctor),
         "allergies": allergies,
         "allergies_alert": allergies_alert,
         "active_conditions_en": patient.get("active_conditions_en") or [],
         "active_conditions_ar": patient.get("active_conditions_ar") or [],
-        "upcoming_appointments": upcoming,
-        "recent_past_appointments": past,
-        "active_prescriptions": active_prescriptions,
-        "all_prescriptions": prescriptions,
-        "released_lab_results": released_lab_results,
-        "pending_lab_results": pending_lab_results,
-        "outstanding_invoices": outstanding_invoices,
-        "paid_invoices_recent": paid_invoices[:5],
+        "upcoming_appointments": _strip(upcoming),
+        "recent_past_appointments": _strip(past),
+        "active_prescriptions": _strip(active_prescriptions, "medications"),
+        "released_lab_results": _strip(released_lab_results, *_LAB_VALUE_KEYS),
+        "pending_lab_results": _strip(pending_lab_results, *_LAB_VALUE_KEYS),
+        "outstanding_invoices": _strip(outstanding_invoices),
+        "paid_invoices_recent": _strip(paid_invoices[:5]),
         "payment_history_summary": {
             "total_paid_sar": total_paid,
             "total_outstanding_sar": total_outstanding,
             "paid_invoice_count": len(paid_invoices),
             "outstanding_invoice_count": len(outstanding_invoices),
         },
-        "pending_refill_requests": pending_refill_requests,
-        "pending_preauth_requests": pending_preauth_requests,
-        "medical_history": history,
+        "pending_refill_requests": _strip(pending_refill_requests),
+        "pending_preauth_requests": _strip(pending_preauth_requests),
+        "medical_history": _strip(history),
         "pharmacies": pharmacies_out,
         "refillable_medications": refillable_medications,
     }
@@ -1387,7 +1470,7 @@ async def get_doctor(
     for filter_name, params in attempts:
         doctors = await sb_get("doctors", params)
         if doctors:
-            return {"doctors": doctors, "count": len(doctors), "matched_by": filter_name}
+            return {"doctors": _strip(doctors), "count": len(doctors), "matched_by": filter_name}
 
     return {"doctors": [], "count": 0, "matched_by": None,
             "note": f"No doctor matched the provided filters (tried: {[a[0] for a in attempts]})"}
@@ -1491,7 +1574,7 @@ async def get_slots(
             "clinic_address_en": c.get("address_en"),
         })
 
-    return {"slots": enriched, "count": len(enriched)}
+    return {"slots": _strip(enriched), "count": len(enriched)}
 
 
 # ============================================================
@@ -1510,7 +1593,7 @@ async def get_clinic(
     elif city:
         params["city_en"] = f"ilike.*{city}*"
     clinics = await sb_get("clinics", params)
-    return {"clinics": clinics, "count": len(clinics)}
+    return {"clinics": _strip(clinics), "count": len(clinics)}
 
 
 # ============================================================
@@ -1531,7 +1614,7 @@ async def get_medication(
     else:
         raise HTTPException(status_code=400, detail="Provide medication_id or name")
     meds = await sb_get("medications_catalog", params)
-    return {"medications": meds, "count": len(meds)}
+    return {"medications": _strip(meds), "count": len(meds)}
 
 
 # ============================================================
@@ -1548,7 +1631,7 @@ async def get_insurance(
     plan = await sb_get_one("insurance_providers", {"provider_id": f"eq.{provider_id}"})
     if not plan:
         raise HTTPException(status_code=404, detail="Insurance plan not found")
-    return plan
+    return _strip_one(plan)
 
 
 # ============================================================
