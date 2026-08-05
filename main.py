@@ -1,7 +1,24 @@
 """
-Al-Noor Healthcare Agent API - v3.3.1 (multi-tenant, service-account auth)
+Al-Noor Healthcare Agent API - v3.4 (multi-tenant, service-account auth)
 Architecture: Supabase-backed via httpx REST, authenticated as a dedicated
 service-account user (NOT the service role key).
+
+CHANGES IN v3.4 — BILLING CORRECTNESS + BOOKING GUARD:
+  - PARTIAL PAYMENTS NO LONGER LOSE MONEY. record_payment previously updated
+    only `status` and left `patient_due_sar` at its original value. Combined
+    with /patient filtering outstanding on status == "Outstanding" and paid on
+    status == "Paid", a "Partially Paid" invoice matched NEITHER list and
+    disappeared from the response: outstanding_total_sar fell to zero and the
+    agent told the patient their account was clear while they still owed.
+    Now the balance is decremented, "Partially Paid" counts as outstanding,
+    and the response returns remaining_sar / fully_paid so the agent can quote
+    the real remaining figure.
+  - record_payment rejects amounts <= 0 and reports overpayment separately
+    rather than silently clamping.
+  - book_appointment now returns a structured 409 when the patient already has
+    a live appointment with the same doctor on the same day. Every other write
+    path had a server guard; this one relied solely on the agent checking
+    upcoming_appointments first.
 
 CHANGES IN v3.3.1:
   - The medication dose field is "Dose" in the seed JSONB, not "Dosage" —
@@ -296,7 +313,7 @@ TENANT_TABLES = {
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="3.3.1")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.4")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -963,7 +980,7 @@ def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> d
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "3.3.1",
+        "version": "3.4",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
@@ -997,7 +1014,7 @@ async def health():
 
     return {
         "status": "ok" if healthy else "degraded",
-        "version": "3.3.1",
+        "version": "3.4",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "default_owner_configured": bool(DEFAULT_OWNER_ID),
@@ -1202,7 +1219,14 @@ async def get_patient(
     active_prescriptions = [p for p in prescriptions if p.get("status") == "Active"]
     released_lab_results = [l for l in lab_results if l.get("status") == "Released"]
     pending_lab_results = [l for l in lab_results if l.get("status") == "Pending"]
-    outstanding_invoices = [i for i in invoices if i.get("status") == "Outstanding"]
+    # A partially paid invoice still has money owed on it, so it belongs in
+    # outstanding — NOT in a third bucket that neither list matches. Before
+    # v3.4 "Partially Paid" fell through both filters and the invoice vanished
+    # from the response entirely: outstanding_total_sar dropped to zero and the
+    # agent told the patient their account was clear while they still owed.
+    outstanding_invoices = [
+        i for i in invoices if i.get("status") in ("Outstanding", "Partially Paid")
+    ]
     paid_invoices = [i for i in invoices if i.get("status") == "Paid"]
 
     pending_refill_requests = [
@@ -1596,6 +1620,34 @@ async def _book_impl(
     if slot.get("booked_count", 0) >= slot.get("slot_capacity", 1):
         raise HTTPException(status_code=409, detail="Slot is full")
 
+    # Duplicate guard: same patient, same doctor, same day, still live.
+    # The SI tells the agent to check upcoming_appointments first, but every
+    # other write path here has a server-side guard (full slot, duplicate
+    # registration) and this one didn't — so a dropped SI check meant a
+    # silently double-booked patient.
+    same_day = await sb_get("appointments", {
+        "patient_id": f"eq.{patient_id}",
+        "doctor_id": f"eq.{slot['doctor_id']}",
+        "date": f"eq.{slot['date']}",
+    }, owner=owner)
+    live = [a for a in same_day if a.get("status") not in ("Cancelled", "Completed")]
+    if live:
+        existing = live[0]
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "duplicate_appointment",
+                "appointment_id": existing.get("appointment_id"),
+                "date": existing.get("date"),
+                "start_time": existing.get("start_time"),
+                "doctor_id": existing.get("doctor_id"),
+                "message": (
+                    f"Patient already has appointment {existing.get('appointment_id')} "
+                    f"with this doctor on {existing.get('date')} at {existing.get('start_time')}"
+                ),
+            },
+        )
+
     # Generate the next appointment ID WITHIN THIS TENANT. Each tenant counts
     # independently, so APT-H042 in Alice's demo and APT-H042 in Bob's demo are
     # different appointments — that's intentional, they're separate demos.
@@ -1876,10 +1928,24 @@ async def record_payment(
     if inv.get("status") == "Paid":
         raise HTTPException(status_code=409, detail="Invoice already paid")
 
+    if amount_sar <= 0:
+        raise HTTPException(status_code=400, detail="Payment amount must be greater than zero")
+
     due = float(inv.get("patient_due_sar") or 0)
-    if amount_sar < due:
+
+    # Decrement the balance. Before v3.4 only `status` moved and
+    # patient_due_sar was left at its original value, so a partial payment
+    # left the full amount showing as owed while the invoice simultaneously
+    # dropped out of both the outstanding and paid lists.
+    remaining = round(max(0.0, due - amount_sar), 2)
+    overpaid = round(max(0.0, amount_sar - due), 2)
+
+    if remaining > 0:
         new_status = "Partially Paid"
-        note_extra = f"\nPartial payment {amount_sar} SAR on {date.today().isoformat()} ({payment_method})"
+        note_extra = (
+            f"\nPartial payment {amount_sar} SAR on {date.today().isoformat()} "
+            f"({payment_method}) — SAR {remaining} remaining"
+        )
     else:
         new_status = "Paid"
         note_extra = f"\nPaid in full {amount_sar} SAR on {date.today().isoformat()} ({payment_method})"
@@ -1888,20 +1954,33 @@ async def record_payment(
         "invoices",
         {"invoice_id": f"eq.{invoice_id}"},
         {"status": new_status,
+         "patient_due_sar": remaining,
          "payment_method": payment_method,
          "payment_date": date.today().isoformat(),
          "notes_en": (inv.get("notes_en") or "") + note_extra},
         owner=owner,
     )
 
+    desc = (
+        f"Payment of SAR {amount_sar} via {payment_method} for invoice {invoice_id}"
+        + (f" — SAR {remaining} still outstanding" if remaining > 0 else " — paid in full")
+    )
     await log_agent_action(
-        inv["patient_id"], "Payment Recorded",
-        f"Payment of SAR {amount_sar} via {payment_method} for invoice {invoice_id}",
-        {"invoice_id": invoice_id, "amount_sar": amount_sar, "method": payment_method},
+        inv["patient_id"], "Payment Recorded", desc,
+        {"invoice_id": invoice_id, "amount_sar": amount_sar, "method": payment_method,
+         "remaining_sar": remaining, "status": new_status},
         owner=owner,
     )
 
-    return {"ok": True, "invoice_id": invoice_id, "status": new_status, "amount_paid_sar": amount_sar}
+    return {
+        "ok": True,
+        "invoice_id": invoice_id,
+        "status": new_status,
+        "amount_paid_sar": amount_sar,
+        "remaining_sar": remaining,
+        "overpaid_sar": overpaid if overpaid > 0 else None,
+        "fully_paid": remaining == 0,
+    }
 
 
 # ============================================================
