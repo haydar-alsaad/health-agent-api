@@ -1,7 +1,29 @@
 """
-Al-Noor Healthcare Agent API - v3.2 (multi-tenant, service-account auth)
+Al-Noor Healthcare Agent API - v3.3 (multi-tenant, service-account auth)
 Architecture: Supabase-backed via httpx REST, authenticated as a dedicated
 service-account user (NOT the service role key).
+
+CHANGES IN v3.3 — PRESCRIPTION REFILL DATA:
+  refill_prescription needs prescription_id + medication_id + pharmacy_id.
+  Only the first was reachable in a usable form:
+    - pharmacy_id had NO source. `pharmacies` appeared in no response and
+      there was no pharmacy tool, so the agent would gather the medication,
+      ask "which pharmacy?", and then stall — it could not turn the answer
+      into an ID. This is why refills froze mid-flow.
+    - medication_id lived inside the prescriptions[].medications[] JSONB
+      array, which the agent had to walk unaided. This is why refills that
+      did complete often used the wrong medication.
+  Fixes:
+    - `pharmacies` added to the reference cache and returned on /patient —
+      full catalog with per-pharmacy delivery availability and fee, so the
+      agent quotes real numbers instead of memorised constants.
+    - `refillable_medications` added to /patient — a FLAT list carrying
+      prescription_id, medication_id, name, dosage, refills_remaining and a
+      can_refill_now flag. Everything a refill call needs, no nesting.
+    - /prescription/refill now resolves the pharmacy name from the cache
+      rather than issuing a fresh query.
+  No breaking changes: existing response fields are untouched, the two new
+  keys are additive, and no endpoint signature changed.
 
 CHANGES IN v3.2:
   - Added GET /whoami — a tenant-routing diagnostic. Resolves a caller_phone
@@ -265,7 +287,7 @@ TENANT_TABLES = {
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="3.2")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.3")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -544,6 +566,7 @@ _REF_CACHE_TTL = 60.0  # seconds
 _reference_cache: dict = {
     "doctors": {"data": None, "ts": 0.0},
     "clinics": {"data": None, "ts": 0.0},
+    "pharmacies": {"data": None, "ts": 0.0},
 }
 
 
@@ -563,6 +586,22 @@ async def get_clinics_cached() -> list:
     c = _reference_cache["clinics"]
     if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
         c["data"] = await sb_get("clinics", {"select": "*"})
+        c["ts"] = _monotonic()
+    return c["data"]
+
+
+async def get_pharmacies_cached() -> list:
+    """Return the shared pharmacies catalog from cache or fetch+cache it.
+
+    Exposed on /patient because the agent cannot complete a refill without a
+    pharmacy_id, and before v3.3 there was no way for it to obtain one — no
+    pharmacy tool existed and pharmacies were absent from every response. The
+    agent would collect the medication, then stall at "which pharmacy?" with
+    nowhere to resolve the answer to an ID.
+    """
+    c = _reference_cache["pharmacies"]
+    if c["data"] is None or (_monotonic() - c["ts"]) > _REF_CACHE_TTL:
+        c["data"] = await sb_get("pharmacies", {"select": "*"})
         c["ts"] = _monotonic()
     return c["data"]
 
@@ -915,7 +954,7 @@ def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> d
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "3.2",
+        "version": "3.3",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
@@ -949,7 +988,7 @@ async def health():
 
     return {
         "status": "ok" if healthy else "degraded",
-        "version": "3.2",
+        "version": "3.3",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "default_owner_configured": bool(DEFAULT_OWNER_ID),
@@ -1091,6 +1130,7 @@ async def get_patient(
         history,
         all_doctors,
         all_clinics,
+        all_pharmacies,
         insurance,
         refill_reqs,
         preauth_reqs,
@@ -1117,6 +1157,7 @@ async def get_patient(
         }, owner=owner),
         get_doctors_cached(),
         get_clinics_cached(),
+        get_pharmacies_cached(),
         sb_get_one("insurance_providers", {
             "provider_id": f"eq.{patient.get('insurance_provider_id', '')}"
         }) if patient.get("insurance_provider_id") else asyncio.sleep(0, result=None),
@@ -1170,6 +1211,67 @@ async def get_patient(
     total_paid = sum(float(i.get("patient_due_sar") or 0) for i in paid_invoices)
     total_outstanding = sum(float(i.get("patient_due_sar") or 0) for i in outstanding_invoices)
 
+    # --- Refill support -------------------------------------------------
+    # A refill needs prescription_id + medication_id + pharmacy_id. The first
+    # two live in the prescription rows (medication_id nested inside the
+    # `medications` JSONB array); the third had no source at all before v3.3.
+    #
+    # Two additions below:
+    #   1. `pharmacies` — the shared catalog, so the agent can resolve a
+    #      pharmacy the patient names into an ID, and quote that pharmacy's
+    #      real delivery fee instead of a memorised constant.
+    #   2. `refillable_medications` — a FLAT list of exactly what a refill
+    #      call needs, so the agent never has to walk the nested JSONB.
+    #      Nesting was the other half of why refills were unreliable.
+
+    pharmacies_out = [
+        {
+            "pharmacy_id": p.get("pharmacy_id"),
+            "pharmacy_name_en": p.get("pharmacy_name_en"),
+            "pharmacy_name_ar": p.get("pharmacy_name_ar"),
+            "type": p.get("type"),
+            "linked_clinic_id": p.get("linked_clinic_id"),
+            "city": p.get("city"),
+            "phone": p.get("phone"),
+            "operating_hours": p.get("operating_hours"),
+            "home_delivery_available": p.get("home_delivery_available"),
+            "home_delivery_fee_sar": p.get("home_delivery_fee_sar"),
+            "home_delivery_cities": p.get("home_delivery_cities"),
+            "home_delivery_window": p.get("home_delivery_window"),
+        }
+        for p in (all_pharmacies or [])
+    ]
+
+    def _med_field(m: dict, snake: str, title: str):
+        """Prescription `medications` JSONB may use snake_case or the original
+        Title Case keys depending on when the row was seeded. Tolerate both."""
+        v = m.get(snake)
+        return v if v is not None else m.get(title)
+
+    refillable_medications = []
+    for rx in active_prescriptions:
+        for m in (rx.get("medications") or []):
+            refills = _med_field(m, "refills_remaining", "Refills Remaining")
+            try:
+                refills = int(refills) if refills is not None else 0
+            except (TypeError, ValueError):
+                refills = 0
+            refillable_medications.append({
+                # Everything refill_prescription needs, pre-flattened:
+                "prescription_id": rx.get("prescription_id"),
+                "medication_id": _med_field(m, "medication_id", "Medication ID"),
+                "name_en": _med_field(m, "name_en", "Name (EN)"),
+                "name_ar": _med_field(m, "name_ar", "Name (AR)"),
+                "dosage": _med_field(m, "dosage", "Dosage"),
+                "frequency": _med_field(m, "frequency", "Frequency"),
+                "refills_remaining": refills,
+                "can_refill_now": refills > 0,
+                "prescription_expiration_date": rx.get("expiration_date"),
+                "last_filled_date": rx.get("last_filled_date"),
+                "last_filled_pharmacy_id": rx.get("last_filled_pharmacy_id"),
+                "prescribing_doctor_id": rx.get("prescribing_doctor_id"),
+            })
+
     return {
         "patient": patient,
         "insurance": insurance,
@@ -1195,6 +1297,8 @@ async def get_patient(
         "pending_refill_requests": pending_refill_requests,
         "pending_preauth_requests": pending_preauth_requests,
         "medical_history": history,
+        "pharmacies": pharmacies_out,
+        "refillable_medications": refillable_medications,
     }
 
 
@@ -1710,8 +1814,12 @@ async def refill_prescription(
     }
     await sb_insert("refill_requests", refill_row, owner=owner)
 
-    # pharmacies is a SHARED catalog — no tenant scoping
-    pharmacy = await sb_get_one("pharmacies", {"pharmacy_id": f"eq.{pharmacy_id}"})
+    # pharmacies is a SHARED catalog — served from the in-process cache,
+    # so this costs nothing on a warm call.
+    all_pharmacies = await get_pharmacies_cached()
+    pharmacy = next(
+        (p for p in all_pharmacies if p.get("pharmacy_id") == pharmacy_id), None
+    )
     pharmacy_name = pharmacy.get("pharmacy_name_en") if pharmacy else pharmacy_id
 
     await log_agent_action(
