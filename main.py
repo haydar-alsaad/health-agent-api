@@ -1,7 +1,16 @@
 """
-Al-Noor Healthcare Agent API - v3.3 (multi-tenant, service-account auth)
+Al-Noor Healthcare Agent API - v3.3.1 (multi-tenant, service-account auth)
 Architecture: Supabase-backed via httpx REST, authenticated as a dedicated
 service-account user (NOT the service role key).
+
+CHANGES IN v3.3.1:
+  - The medication dose field is "Dose" in the seed JSONB, not "Dosage" —
+    v3.3 returned null for every dose. Widened the field reader to accept any
+    plausible spelling.
+  - Also surfaced instructions_en/ar, frequency_ar, duration_days and
+    refills_total, which were sitting unused in the medications array. The
+    Arabic frequency in particular matters: the agent runs bilingual and
+    previously had only the English string to work from.
 
 CHANGES IN v3.3 — PRESCRIPTION REFILL DATA:
   refill_prescription needs prescription_id + medication_id + pharmacy_id.
@@ -287,7 +296,7 @@ TENANT_TABLES = {
 # App
 # ============================================================
 
-app = FastAPI(title="Al-Noor Health Agent API", version="3.3")
+app = FastAPI(title="Al-Noor Health Agent API", version="3.3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -954,7 +963,7 @@ def enrich_appointment(apt: dict, doctors_by_id: dict, clinics_by_id: dict) -> d
 async def root():
     return {
         "service": "Al-Noor Health Agent API",
-        "version": "3.3",
+        "version": "3.3.1",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "supabase_configured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
@@ -988,7 +997,7 @@ async def health():
 
     return {
         "status": "ok" if healthy else "degraded",
-        "version": "3.3",
+        "version": "3.3.1",
         "multi_tenant": True,
         "auth_mode": "service_account",
         "default_owner_configured": bool(DEFAULT_OWNER_ID),
@@ -1242,16 +1251,26 @@ async def get_patient(
         for p in (all_pharmacies or [])
     ]
 
-    def _med_field(m: dict, snake: str, title: str):
-        """Prescription `medications` JSONB may use snake_case or the original
-        Title Case keys depending on when the row was seeded. Tolerate both."""
-        v = m.get(snake)
-        return v if v is not None else m.get(title)
+    def _med_field(m: dict, *keys):
+        """Read the first key present in a medication object.
+
+        The `medications` JSONB uses the ORIGINAL Title Case seed keys —
+        "Medication ID", "Name (EN)", "Dose", "Frequency (EN)", "Refills
+        Remaining" — but a Lovable-normalised row may use snake_case instead.
+        Pass every plausible spelling; note that the dose field is "Dose",
+        NOT "Dosage" (that mismatch shipped a null in v3.3).
+        """
+        for k in keys:
+            v = m.get(k)
+            if v is not None:
+                return v
+        return None
 
     refillable_medications = []
     for rx in active_prescriptions:
         for m in (rx.get("medications") or []):
             refills = _med_field(m, "refills_remaining", "Refills Remaining")
+            refills_total = _med_field(m, "refills_total", "Refills Total")
             try:
                 refills = int(refills) if refills is not None else 0
             except (TypeError, ValueError):
@@ -1262,9 +1281,14 @@ async def get_patient(
                 "medication_id": _med_field(m, "medication_id", "Medication ID"),
                 "name_en": _med_field(m, "name_en", "Name (EN)"),
                 "name_ar": _med_field(m, "name_ar", "Name (AR)"),
-                "dosage": _med_field(m, "dosage", "Dosage"),
-                "frequency": _med_field(m, "frequency", "Frequency"),
+                "dose": _med_field(m, "dose", "Dose", "dosage", "Dosage"),
+                "frequency_en": _med_field(m, "frequency_en", "Frequency (EN)", "frequency", "Frequency"),
+                "frequency_ar": _med_field(m, "frequency_ar", "Frequency (AR)"),
+                "instructions_en": _med_field(m, "instructions_en", "Instructions (EN)"),
+                "instructions_ar": _med_field(m, "instructions_ar", "Instructions (AR)"),
+                "duration_days": _med_field(m, "duration_days", "Duration Days"),
                 "refills_remaining": refills,
+                "refills_total": refills_total,
                 "can_refill_now": refills > 0,
                 "prescription_expiration_date": rx.get("expiration_date"),
                 "last_filled_date": rx.get("last_filled_date"),
